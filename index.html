@@ -549,16 +549,13 @@ function resetAll() {
   ['searchBig','searchSmall'].forEach(id => document.getElementById(id).value = '');
   buildGrid('big'); buildGrid('small');
   updateUI('big'); updateUI('small');
-  goScreen('screenChat');
-  showChatInit();
+  goScreen('screenBig');
 }
 
-// Init
+// Init — skip greeting, go directly to sticker selection
 buildGrid('big'); buildGrid('small');
 updateUI('big'); updateUI('small');
-showChatInit();
-
-// LIFF is initialized at the top of the script
+goScreen('screenBig');
 </script>
 </body>
 </html>
