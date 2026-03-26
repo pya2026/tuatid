@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>CRUZY — สั่งตัวติด 3D</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
@@ -415,170 +416,78 @@ function showConfirm() {
 
 function hideConfirm() { document.getElementById('overlay').classList.remove('show'); }
 
-/* ═══ PDF Generation ═══ */
-let jsPDFReady = false;
+/* ═══ LIFF Init ═══ */
+let liffReady = false;
+const LIFF_ID = '2009609185-pRes2K3v';
 
-function loadJsPDF() {
-  return new Promise((resolve, reject) => {
-    if (window.jspdf) { jsPDFReady = true; resolve(); return; }
-    const cdns = [
-      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js',
-      'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
-    ];
-    let idx = 0;
-    function tryNext() {
-      if (idx >= cdns.length) { reject(new Error('Failed to load jsPDF from all CDNs')); return; }
-      const s = document.createElement('script');
-      s.src = cdns[idx++];
-      s.onload = () => {
-        if (window.jspdf) { jsPDFReady = true; resolve(); }
-        else tryNext();
-      };
-      s.onerror = () => tryNext();
-      document.head.appendChild(s);
+async function initLiff() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    liffReady = true;
+    console.log('LIFF initialized OK. isInClient:', liff.isInClient());
+    if (!liff.isLoggedIn()) {
+      liff.login();
     }
-    tryNext();
-  });
+  } catch(e) {
+    console.error('LIFF init error:', e);
+  }
 }
+initLiff();
 
-async function generatePDF(orderId) {
-  await loadJsPDF();
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF('p', 'mm', 'a4');
-  const pw = 210, ph = 297, margin = 15;
-
+/* ═══ Submit — Send to LINE Chat ═══ */
+async function submitOrder() {
+  hideConfirm();
+  const orderId = '#CRZ' + Date.now().toString().slice(-6);
   const bigItems = [...selected.big].sort((a,b)=>a-b);
   const smallItems = [...selected.small].sort((a,b)=>a-b);
   const total = bigItems.length + smallItems.length;
   const now = new Date();
   const dateStr = now.getFullYear()+'-'+(''+(now.getMonth()+1)).padStart(2,'0')+'-'+(''+ now.getDate()).padStart(2,'0')+' '+(''+ now.getHours()).padStart(2,'0')+':'+(''+ now.getMinutes()).padStart(2,'0');
 
-  // Header bar
-  doc.setFillColor(26,26,26);
-  doc.rect(0,0,pw,36,'F');
-  doc.setTextColor(245,197,24);
-  doc.setFontSize(24);
-  doc.setFont('Helvetica','bold');
-  doc.text('CRUZY',margin,16);
-  doc.setFontSize(9);
-  doc.setFont('Helvetica','normal');
-  doc.setTextColor(200,200,200);
-  doc.text('Order Summary  |  3D Stickers',margin,25);
-  doc.setTextColor(245,197,24);
-  doc.setFontSize(10);
-  doc.text(orderId,pw-margin,16,{align:'right'});
-  doc.setTextColor(200,200,200);
-  doc.setFontSize(9);
-  doc.text(dateStr,pw-margin,25,{align:'right'});
+  // Build order summary text
+  let msg = '📋 คำสั่งซื้อ CRUZY\n';
+  msg += '━━━━━━━━━━━━━━━\n';
+  msg += orderId + '  |  ' + dateStr + '\n\n';
 
-  // Summary stats bar
-  let y = 44;
-  doc.setFillColor(255,253,232);
-  doc.roundedRect(margin,y,pw-margin*2,20,3,3,'F');
-  doc.setDrawColor(245,197,24);
-  doc.roundedRect(margin,y,pw-margin*2,20,3,3,'S');
+  if (bigItems.length > 0) {
+    msg += '🔷 ตัวติดใหญ่ (' + bigItems.length + ' ถุง)\n';
+    msg += bigItems.map(id => '#' + id).join(', ') + '\n\n';
+  }
+  if (smallItems.length > 0) {
+    msg += '🔹 ตัวติดเล็ก (' + smallItems.length + ' ถุง)\n';
+    msg += smallItems.map(id => '#' + id).join(', ') + '\n\n';
+  }
 
-  const thirdW = (pw-margin*2)/3;
-  doc.setFontSize(9);
-  doc.setFont('Helvetica','normal');
-  doc.setTextColor(120,120,120);
-  doc.text('BIG', margin+thirdW*0+thirdW/2, y+8, {align:'center'});
-  doc.text('SMALL', margin+thirdW*1+thirdW/2, y+8, {align:'center'});
-  doc.text('TOTAL', margin+thirdW*2+thirdW/2, y+8, {align:'center'});
-  doc.setFontSize(13);
-  doc.setFont('Helvetica','bold');
-  doc.setTextColor(26,26,26);
-  doc.text(bigItems.length+' bags', margin+thirdW*0+thirdW/2, y+16, {align:'center'});
-  doc.text(smallItems.length+' bags', margin+thirdW*1+thirdW/2, y+16, {align:'center'});
-  doc.setTextColor(184,148,14);
-  doc.text(total+' bags', margin+thirdW*2+thirdW/2, y+16, {align:'center'});
-  y += 28;
+  msg += '━━━━━━━━━━━━━━━\n';
+  msg += '✅ รวมทั้งหมด: ' + total + ' ถุง\n';
+  msg += '(ใหญ่ ' + bigItems.length + ' / เล็ก ' + smallItems.length + ')\n\n';
+  msg += 'ขอบคุณที่สั่งซื้อครับ! 🙏\nทีม CRUZY จะติดต่อกลับภายใน 24 ชม.';
 
-  // Draw image grid section (no emoji, English only)
-  function drawSection(label, items) {
-    if (items.length === 0) return;
-    if (y + 20 > ph - 20) { doc.addPage(); y = margin; }
-
-    // Section header bar
-    doc.setFillColor(26,26,26);
-    doc.roundedRect(margin,y,pw-margin*2,10,2,2,'F');
-    doc.setTextColor(245,197,24);
-    doc.setFontSize(11);
-    doc.setFont('Helvetica','bold');
-    doc.text(label + '  (' + items.length + ' bags)',margin+5,y+7);
-    y += 14;
-
-    const cols = 5;
-    const gap = 4;
-    const imgSize = (pw - margin*2 - (cols-1)*gap) / cols;
-    const cellH = imgSize + 8;
-
-    for (let i = 0; i < items.length; i++) {
-      const col = i % cols;
-      if (col === 0 && i > 0 && y + cellH > ph - 15) {
-        doc.addPage();
-        y = margin;
-      }
-      const x = margin + col * (imgSize + gap);
-      const s = allStyles.find(st => st.id === items[i]);
-      if (s) {
-        try {
-          doc.setDrawColor(230,230,230);
-          doc.roundedRect(x,y,imgSize,imgSize,2,2,'S');
-          doc.addImage(s.img,'JPEG',x+0.5,y+0.5,imgSize-1,imgSize-1);
-          doc.setTextColor(85,85,85);
-          doc.setFontSize(7);
-          doc.setFont('Helvetica','normal');
-          doc.text('#'+items[i],x+imgSize/2,y+imgSize+5,{align:'center'});
-        } catch(e) {}
-      }
-      if (col === cols-1) y += cellH;
+  // Try to send via LIFF
+  if (liffReady && liff.isInClient()) {
+    try {
+      await liff.sendMessages([{
+        type: 'text',
+        text: msg
+      }]);
+      // Close LIFF and go back to chat
+      liff.closeWindow();
+    } catch(e) {
+      console.error('sendMessages error:', e);
+      alert('ส่งข้อความไม่สำเร็จ: ' + e.message);
+      // Fallback: show summary in-app
+      showInAppSummary(orderId, bigItems, smallItems, total, msg);
     }
-    if (items.length % cols !== 0) y += cellH;
-    y += 4;
+  } else {
+    // Not in LINE app — show summary in-app as fallback
+    showInAppSummary(orderId, bigItems, smallItems, total, msg);
   }
-
-  drawSection('BIG Stickers', bigItems);
-  drawSection('SMALL Stickers', smallItems);
-
-  // Footer
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= pageCount; p++) {
-    doc.setPage(p);
-    doc.setFillColor(245,245,240);
-    doc.rect(0,ph-12,pw,12,'F');
-    doc.setTextColor(170,170,170);
-    doc.setFontSize(7);
-    doc.setFont('Helvetica','normal');
-    doc.text('CRUZY Order '+orderId+'  |  '+dateStr,pw/2,ph-5,{align:'center'});
-    doc.text('Page '+p+'/'+pageCount,pw-margin,ph-5,{align:'right'});
-  }
-
-  return doc;
 }
 
-/* ═══ Submit ═══ */
-async function submitOrder() {
-  hideConfirm();
-  const orderId = '#CRZ' + Date.now().toString().slice(-6);
-  const fileName = 'CRUZY-Order-' + orderId.replace('#','') + '.pdf';
-
-  document.getElementById('pdfOverlay').classList.add('show');
-  let pdfBlobUrl = null;
-  try {
-    const doc = await generatePDF(orderId);
-    const blob = doc.output('blob');
-    pdfBlobUrl = URL.createObjectURL(blob);
-  } catch(e) { console.error('PDF error:', e); }
-  document.getElementById('pdfOverlay').classList.remove('show');
-
-  // Back to chat
+function showInAppSummary(orderId, bigItems, smallItems, total, msg) {
   goScreen('screenChat');
   const chatArea = document.getElementById('chatArea');
-  const bigItems = [...selected.big].sort((a,b)=>a-b);
-  const smallItems = [...selected.small].sort((a,b)=>a-b);
-  const total = bigItems.length + smallItems.length;
+  chatArea.innerHTML = '';
 
   const urow = document.createElement('div');
   urow.className = 'msg-row user';
@@ -600,26 +509,13 @@ async function submitOrder() {
     brow.innerHTML = '<div class="bot-av">CZ</div><div class="summary-card"><div class="s-header">CRUZY Order Summary</div><div class="s-body">'+rows+'<div class="s-row" style="border-top:2px solid #F5C518;margin-top:4px;padding-top:10px;"><span class="lb">Big '+bigItems.length+' / Small '+smallItems.length+'</span><span class="vl" style="color:#b8940e">Total '+total+' bags</span></div></div><div class="s-id">'+orderId+'</div></div>';
     chatArea.appendChild(brow);
 
-    // PDF file bubble
     setTimeout(() => {
-      const pdfRow = document.createElement('div');
-      pdfRow.className = 'msg-row bot';
-      if (pdfBlobUrl) {
-        pdfRow.innerHTML = '<div class="bot-av">CZ</div><div class="bubble" style="padding:0;overflow:hidden;max-width:240px;"><a href="'+pdfBlobUrl+'" download="'+fileName+'" style="display:flex;align-items:center;gap:10px;padding:12px 14px;text-decoration:none;color:#333;"><div style="width:40px;height:40px;background:#e44d26;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="color:white;font-size:11px;font-weight:800;">PDF</span></div><div><div style="font-size:13px;font-weight:600;color:#333;">'+fileName+'</div><div style="font-size:11px;color:#06C755;margin-top:2px;">Tap to download</div></div></a></div>';
-      } else {
-        pdfRow.innerHTML = '<div class="bot-av">CZ</div><div class="bubble">PDF could not be generated.</div>';
-      }
-      chatArea.appendChild(pdfRow);
-
-      setTimeout(() => {
-        const b2 = document.createElement('div');
-        b2.className = 'msg-row bot';
-        b2.innerHTML = '<div class="bot-av">CZ</div><div class="bubble">Thank you for your order! We will contact you within 24 hours.</div>';
-        chatArea.appendChild(b2);
-        chatArea.scrollTop = chatArea.scrollHeight;
-      }, 500);
+      const b2 = document.createElement('div');
+      b2.className = 'msg-row bot';
+      b2.innerHTML = '<div class="bot-av">CZ</div><div class="bubble">ขอบคุณที่สั่งซื้อครับ! 🙏<br>ทีม CRUZY จะติดต่อกลับภายใน 24 ชม.</div>';
+      chatArea.appendChild(b2);
       chatArea.scrollTop = chatArea.scrollHeight;
-    }, 400);
+    }, 500);
     chatArea.scrollTop = chatArea.scrollHeight;
   }, 600);
 }
@@ -662,8 +558,7 @@ buildGrid('big'); buildGrid('small');
 updateUI('big'); updateUI('small');
 showChatInit();
 
-// Preload jsPDF in background
-setTimeout(() => loadJsPDF().catch(()=>{}), 2000);
+// LIFF is initialized at the top of the script
 </script>
 </body>
 </html>
