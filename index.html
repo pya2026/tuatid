@@ -436,15 +436,17 @@ async function initLiff() {
 }
 initLiff();
 
-/* ═══ Submit — Send order to server → PDF + Flex receipt in chat ═══ */
+/* ═══ Submit — Send order to server → close window immediately ═══ */
 async function submitOrder() {
   hideConfirm();
-  showToast('Sending order...');
 
   const orderId = '#CRZ' + Date.now().toString().slice(-6);
   const bigItems = [...selected.big].sort((a,b)=>a-b);
   const smallItems = [...selected.small].sort((a,b)=>a-b);
   const total = bigItems.length + smallItems.length;
+
+  // Show brief confirmation
+  showToast('คอนเฟิร์มการสั่งแล้ว!');
 
   // Get LINE userId from LIFF profile
   let userId = null;
@@ -455,25 +457,21 @@ async function submitOrder() {
     } catch(e) { console.error('getProfile:', e); }
   }
 
-  // Send order to server (server generates PDF + pushes Flex receipt)
+  // Send order to server (server generates PDF + pushes Flex receipt to chat)
   try {
-    const resp = await fetch(SERVER_URL + '/order', {
+    await fetch(SERVER_URL + '/order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId, bigItems, smallItems, total, userId })
     });
-    const result = await resp.json();
-    console.log('Order sent:', result);
-  } catch(e) {
-    console.error('Send order error:', e);
-  }
+  } catch(e) { console.error('Send order error:', e); }
 
-  // Close LIFF window (goes back to LINE chat where Flex receipt will appear)
+  // Close LIFF → go back to LINE chat (Flex receipt + PDF will appear there)
   if (liffReady && liff.isInClient()) {
     liff.closeWindow();
   } else {
-    // Fallback for external browser
-    showInAppSummary(orderId, bigItems, smallItems, total, '');
+    // Fallback for browser: just show confirmation text, no summary page
+    alert('คอนเฟิร์มการสั่งแล้ว! (' + orderId + ')\nกรุณากลับไปที่ LINE แชทเพื่อดูสรุปและ PDF');
   }
 }
 
