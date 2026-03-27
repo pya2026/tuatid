@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRUZY Admin Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#f5f5f0;color:#333;min-height:100vh}
+
+  /* ── Sidebar ── */
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:#1a1a1a;color:#fff;padding:20px 0;z-index:100;display:flex;flex-direction:column}
+  .sidebar .logo{font-size:24px;font-weight:700;color:#F5C518;text-align:center;padding:10px 20px 30px}
+  .sidebar a{display:flex;align-items:center;gap:10px;padding:12px 24px;color:#aaa;text-decoration:none;font-size:14px;font-weight:500;transition:.2s}
+  .sidebar a:hover,.sidebar a.active{color:#F5C518;background:rgba(245,197,24,.08)}
+  .sidebar a .icon{font-size:18px;width:24px;text-align:center}
+  .sidebar .bottom{margin-top:auto;padding:16px 24px;font-size:11px;color:#555}
+
+  /* ── Main ── */
+  .main{margin-left:220px;padding:24px}
+
+  /* ── Top bar ── */
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  .topbar h1{font-size:22px;font-weight:700;color:#1a1a1a}
+  .topbar .actions{display:flex;gap:10px}
+
+  /* ── Cards ── */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+  .stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .stat-card .label{font-size:12px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+  .stat-card .value{font-size:28px;font-weight:700;color:#1a1a1a;margin-top:4px}
+  .stat-card .sub{font-size:11px;color:#aaa;margin-top:4px}
+  .stat-card.gold .value{color:#C9A800}
+  .stat-card.green .value{color:#27ae60}
+  .stat-card.red .value{color:#e74c3c}
+
+  /* ── Panel ── */
+  .panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:24px;overflow:hidden}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0}
+  .panel-header h2{font-size:16px;font-weight:600}
+  .panel-body{padding:20px}
+
+  /* ── Table ── */
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #f0f0f0}
+  td{padding:10px 12px;font-size:13px;border-bottom:1px solid #f8f8f5}
+  tr:hover td{background:#fafaf8}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .badge.active{background:#e8f5e9;color:#27ae60}
+  .badge.inactive{background:#fde8e8;color:#e74c3c}
+  .badge.confirmed{background:#e3f2fd;color:#1976d2}
+  .badge.shipped{background:#e8f5e9;color:#27ae60}
+  .badge.cancelled{background:#fde8e8;color:#e74c3c}
+  .stock-low{color:#e74c3c;font-weight:600}
+
+  /* ── Buttons ── */
+  .btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;font-family:inherit}
+  .btn-primary{background:#F5C518;color:#1a1a1a}.btn-primary:hover{background:#e6b800}
+  .btn-sm{padding:5px 10px;font-size:11px;border-radius:6px}
+  .btn-outline{background:none;border:1.5px solid #ddd;color:#666}.btn-outline:hover{border-color:#999}
+  .btn-danger{background:#fde8e8;color:#e74c3c}.btn-danger:hover{background:#fcc}
+
+  /* ── Forms ── */
+  .form-group{margin-bottom:14px}
+  .form-group label{display:block;font-size:12px;font-weight:600;color:#666;margin-bottom:4px}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:.2s}
+  .form-group input:focus,.form-group select:focus{border-color:#F5C518}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* ── Modal ── */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:200}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;border-radius:16px;padding:24px;width:90%;max-width:480px;max-height:85vh;overflow-y:auto;animation:slideUp .2s ease}
+  @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .modal h3{font-size:18px;margin-bottom:16px}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+  /* ── Tab nav ── */
+  .tabs{display:flex;gap:0;border-bottom:2px solid #f0f0f0;margin-bottom:20px}
+  .tabs button{padding:10px 20px;border:none;background:none;font-size:13px;font-weight:600;color:#999;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;font-family:inherit}
+  .tabs button.active{color:#F5C518;border-bottom-color:#F5C518}
+  .tab-content{display:none}.tab-content.active{display:block}
+
+  /* ── Login ── */
+  .login-wrap{display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a1a}
+  .login-box{background:#fff;padding:40px;border-radius:16px;width:350px;text-align:center}
+  .login-box h2{font-size:28px;font-weight:700;color:#F5C518;margin-bottom:8px}
+  .login-box p{font-size:13px;color:#888;margin-bottom:24px}
+  .login-box input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;text-align:center;margin-bottom:14px;outline:none}
+  .login-box input:focus{border-color:#F5C518}
+  .login-box .btn{width:100%;padding:12px;font-size:15px}
+
+  /* ── Responsive ── */
+  @media(max-width:768px){
+    .sidebar{width:60px;padding:10px 0}
+    .sidebar .logo{font-size:14px;padding:10px 5px 20px}
+    .sidebar a span{display:none}
+    .sidebar a{padding:12px;justify-content:center}
+    .sidebar .bottom{display:none}
+    .main{margin-left:60px;padding:16px}
+    .stat-grid{grid-template-columns:1fr 1fr}
+    .form-row{grid-template-columns:1fr}
+  }
+
+  .img-preview{width:50px;height:50px;border-radius:8px;object-fit:cover;border:1px solid #eee}
+  .empty-msg{text-align:center;padding:40px;color:#ccc;font-size:14px}
+  .toast{position:fixed;top:20px;right:20px;background:#1a1a1a;color:#F5C518;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:.3s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ═══ Login Screen ═══ -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-box">
+    <h2>CRUZY</h2>
+    <p>Admin Dashboard</p>
+    <input type="password" id="loginKey" placeholder="Enter admin key..." onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" onclick="doLogin()">Login</button>
+  </div>
+</div>
+
+<!-- ═══ Dashboard ═══ -->
+<div id="dashScreen" style="display:none">
+
+  <nav class="sidebar">
+    <div class="logo">CRUZY</div>
+    <a href="#" class="active" onclick="showTab('dashboard')" data-tab="dashboard"><span class="icon">📊</span><span>Dashboard</span></a>
+    <a href="#" onclick="showTab('products')" data-tab="products"><span class="icon">📦</span><span>Products</span></a>
+    <a href="#" onclick="showTab('orders')" data-tab="orders"><span class="icon">🛒</span><span>Orders</span></a>
+    <a href="#" onclick="showTab('api')" data-tab="api"><span class="icon">🔗</span><span>API</span></a>
+    <div class="bottom">CRUZY Admin v3</div>
+  </nav>
+
+  <div class="main">
+    <div class="toast" id="toast"></div>
+
+    <!-- ─── Tab: Dashboard ─── -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="topbar"><h1>Dashboard</h1></div>
+      <div class="stat-grid" id="statsGrid"></div>
+      <div class="panel">
+        <div class="panel-header"><h2>Recent Orders</h2></div>
+        <div class="panel-body"><table id="recentOrdersTable"><thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Products ─── -->
+    <div class="tab-content" id="tab-products">
+      <div class="topbar">
+        <h1>Products</h1>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="openAddProduct()">+ Add Product</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>All Products</h2>
+          <div style="display:flex;gap:8px">
+            <select id="filterSize" onchange="loadProducts()" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:12px">
+              <option value="">All Sizes</option><option value="big">BIG</option><option value="small">SMALL</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-body">
+          <table id="productsTable">
+            <thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Size</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Tab: Orders ─── -->
+    <div class="tab-content" id="tab-orders">
+      <div class="topbar">
+        <h1>Orders</h1>
+        <div class="actions">
+          <select id="filterStatus" onchange="loadOrders()" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:12px">
+            <option value="">All Status</option><option value="confirmed">Confirmed</option><option value="shipped">Shipped</option><option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <table id="ordersTable">
+            <thead><tr><th>Order ID</th><th>Date</th><th>BIG</th><th>SMALL</th><th>Total</th><th>Status</th><th>PDF</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Tab: API ─── -->
+    <div class="tab-content" id="tab-api">
+      <div class="topbar"><h1>API Endpoints</h1></div>
+      <div class="panel">
+        <div class="panel-body" id="apiDocs"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Product Modal ═══ -->
+<div class="modal-bg" id="productModal">
+  <div class="modal">
+    <h3 id="productModalTitle">Add Product</h3>
+    <input type="hidden" id="editProductId">
+    <div class="form-row">
+      <div class="form-group"><label>Name</label><input id="pName" placeholder="แบบ 1"></div>
+      <div class="form-group"><label>Size</label><select id="pSize"><option value="big">BIG</option><option value="small">SMALL</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Stock</label><input type="number" id="pStock" placeholder="0"></div>
+      <div class="form-group"><label>Price</label><input type="number" id="pPrice" placeholder="0"></div>
+    </div>
+    <div class="form-group"><label>Image URL</label><input id="pImage" placeholder="https://..."></div>
+    <div class="form-group"><label>Sort Order</label><input type="number" id="pSort" placeholder="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProduct()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let adminKey = '';
+
+// ── Auth ──
+function doLogin() {
+  adminKey = document.getElementById('loginKey').value;
+  if (!adminKey) return;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashScreen').style.display = 'block';
+  loadDashboard();
+}
+
+// ── Navigation ──
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector('[data-tab="' + name + '"]').classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'products') loadProducts();
+  if (name === 'orders') loadOrders();
+  if (name === 'api') showApiDocs();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Dashboard ──
+async function loadDashboard() {
+  try {
+    const res = await fetch(API + '/api/stats');
+    const d = await res.json();
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card gold"><div class="label">Total Products</div><div class="value">${d.products.total}</div><div class="sub">${d.products.active} active</div></div>
+      <div class="stat-card green"><div class="label">Total Orders</div><div class="value">${d.orders.total}</div><div class="sub">${d.orders.today} today</div></div>
+      <div class="stat-card"><div class="label">Total Items Sold</div><div class="value">${d.orders.totalItems}</div></div>
+      <div class="stat-card ${d.products.lowStock > 0 ? 'red' : ''}"><div class="label">Low Stock Alert</div><div class="value">${d.products.lowStock}</div><div class="sub">items with stock ≤ 5</div></div>
+    `;
+    // Recent orders
+    const oRes = await fetch(API + '/api/orders?limit=5&key=' + adminKey);
+    const oData = await oRes.json();
+    const tbody = document.querySelector('#recentOrdersTable tbody');
+    tbody.innerHTML = oData.orders.map(o => `<tr>
+      <td><strong>${o.order_id}</strong></td>
+      <td>${o.created_at}</td>
+      <td>${o.total} items</td>
+      <td><span class="badge ${o.status}">${o.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="4" class="empty-msg">No orders yet</td></tr>';
+  } catch (e) { console.error(e); }
+}
+
+// ── Products ──
+async function loadProducts() {
+  const size = document.getElementById('filterSize').value;
+  let url = API + '/api/products?';
+  if (size) url += 'size=' + size;
+  const res = await fetch(url);
+  const d = await res.json();
+  const tbody = document.querySelector('#productsTable tbody');
+  tbody.innerHTML = d.products.map(p => `<tr>
+    <td>${p.id}</td>
+    <td>${p.image_url ? '<img class="img-preview" src="' + p.image_url + '">' : '<div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>'}</td>
+    <td><strong>${p.name}</strong></td>
+    <td><span class="badge ${p.size === 'big' ? 'confirmed' : 'active'}">${p.size.toUpperCase()}</span></td>
+    <td class="${p.stock <= 5 ? 'stock-low' : ''}">${p.stock}</td>
+    <td><span class="badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'Active' : 'Off'}</span></td>
+    <td>
+      <button class="btn btn-sm btn-outline" onclick="editProduct(${p.id})">Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">Del</button>
+    </td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
+}
+
+function openAddProduct() {
+  document.getElementById('editProductId').value = '';
+  document.getElementById('productModalTitle').textContent = 'Add Product';
+  document.getElementById('pName').value = '';
+  document.getElementById('pSize').value = 'big';
+  document.getElementById('pStock').value = '0';
+  document.getElementById('pPrice').value = '0';
+  document.getElementById('pImage').value = '';
+  document.getElementById('pSort').value = '0';
+  document.getElementById('productModal').classList.add('show');
+}
+
+async function editProduct(id) {
+  const res = await fetch(API + '/api/products');
+  const d = await res.json();
+  const p = d.products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('editProductId').value = id;
+  document.getElementById('productModalTitle').textContent = 'Edit: ' + p.name;
+  document.getElementById('pName').value = p.name;
+  document.getElementById('pSize').value = p.size;
+  document.getElementById('pStock').value = p.stock;
+  document.getElementById('pPrice').value = p.price;
+  document.getElementById('pImage').value = p.image_url;
+  document.getElementById('pSort').value = p.sort_order;
+  document.getElementById('productModal').classList.add('show');
+}
+
+async function saveProduct() {
+  const id = document.getElementById('editProductId').value;
+  const body = {
+    key: adminKey,
+    name: document.getElementById('pName').value,
+    size: document.getElementById('pSize').value,
+    stock: parseInt(document.getElementById('pStock').value) || 0,
+    price: parseFloat(document.getElementById('pPrice').value) || 0,
+    image_url: document.getElementById('pImage').value,
+    sort_order: parseInt(document.getElementById('pSort').value) || 0,
+    active: true,
+  };
+  const url = id ? API + '/api/products/' + id : API + '/api/products';
+  const method = id ? 'PUT' : 'POST';
+  await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  closeModal('productModal');
+  toast(id ? 'Product updated!' : 'Product added!');
+  loadProducts();
+}
+
+async function deleteProduct(id) {
+  if (!confirm('Delete this product?')) return;
+  await fetch(API + '/api/products/' + id, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: adminKey })
+  });
+  toast('Product deleted');
+  loadProducts();
+}
+
+// ── Orders ──
+async function loadOrders() {
+  const status = document.getElementById('filterStatus').value;
+  let url = API + '/api/orders?limit=50&key=' + adminKey;
+  if (status) url += '&status=' + status;
+  const res = await fetch(url);
+  const d = await res.json();
+  const tbody = document.querySelector('#ordersTable tbody');
+  tbody.innerHTML = d.orders.map(o => `<tr>
+    <td><strong>${o.order_id}</strong></td>
+    <td>${o.created_at}</td>
+    <td>${(o.big_items || []).length}</td>
+    <td>${(o.small_items || []).length}</td>
+    <td><strong>${o.total}</strong></td>
+    <td>
+      <select onchange="updateOrderStatus('${o.order_id}', this.value)" style="padding:4px 8px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:11px">
+        <option value="confirmed" ${o.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+        <option value="shipped" ${o.status === 'shipped' ? 'selected' : ''}>Shipped</option>
+        <option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+      </select>
+    </td>
+    <td>${o.pdf_url ? '<a href="' + o.pdf_url + '" target="_blank" class="btn btn-sm btn-outline">PDF</a>' : '-'}</td>
+    <td><a href="${API}/api/orders/${o.order_id}" target="_blank" class="btn btn-sm btn-outline">JSON</a></td>
+  </tr>`).join('') || '<tr><td colspan="8" class="empty-msg">No orders yet</td></tr>';
+}
+
+async function updateOrderStatus(orderId, status) {
+  await fetch(API + '/api/orders/' + orderId, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: adminKey, status })
+  });
+  toast('Order ' + orderId + ' → ' + status);
+}
+
+// ── API Docs ──
+function showApiDocs() {
+  const base = API;
+  document.getElementById('apiDocs').innerHTML = `
+    <h3 style="margin-bottom:16px">REST API Endpoints</h3>
+    <p style="font-size:13px;color:#888;margin-bottom:20px">Base URL: <code style="background:#f5f5f0;padding:4px 8px;border-radius:4px">${base}</code></p>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${apiCard('GET', '/api/products', 'List all products with stock info', 'No auth required')}
+      ${apiCard('GET', '/api/products?size=big', 'Filter products by size (big/small)', 'No auth required')}
+      ${apiCard('POST', '/api/products', 'Add new product', 'Requires admin key in body: { key, name, size, stock, ... }')}
+      ${apiCard('PUT', '/api/products/:id', 'Update product', 'Requires admin key')}
+      ${apiCard('DELETE', '/api/products/:id', 'Delete product', 'Requires admin key')}
+      ${apiCard('POST', '/api/products/bulk', 'Bulk add products', '{ key, products: [{name,size,stock,...}] }')}
+      <hr style="border:none;border-top:1px solid #f0f0f0">
+      ${apiCard('GET', '/api/orders', 'List orders', '?limit=20&status=confirmed&from=2024-01-01')}
+      ${apiCard('GET', '/api/orders/:orderId', 'Get order detail + items', 'Returns full order with PDF link')}
+      ${apiCard('PUT', '/api/orders/:orderId', 'Update order status', '{ key, status: "shipped" }')}
+      <hr style="border:none;border-top:1px solid #f0f0f0">
+      ${apiCard('GET', '/api/stock', 'Get current stock levels', 'No auth required')}
+      ${apiCard('POST', '/api/stock/update', 'Bulk update stock', '{ key, updates: [{id, stock}] }')}
+      ${apiCard('GET', '/api/stats', 'Dashboard statistics', 'Returns product/order counts, daily chart, top products')}
+    </div>
+
+    <h3 style="margin:24px 0 12px">SQL Access</h3>
+    <p style="font-size:13px;color:#666;line-height:1.7">
+      Database: <strong>SQLite</strong> (file: data/cruzy.db)<br>
+      Tables: <strong>products</strong>, <strong>orders</strong>, <strong>order_items</strong><br>
+      You can connect via any SQLite client or use the API endpoints above.<br>
+      For direct SQL queries, download the DB file from the server or use a tool like DBeaver.
+    </p>
+
+    <h3 style="margin:24px 0 12px">Example: Connect from another website</h3>
+    <pre style="background:#1a1a1a;color:#F5C518;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;line-height:1.6">
+// JavaScript — Fetch products
+const res = await fetch('${base}/api/products');
+const { products } = await res.json();
+console.log(products);
+
+// JavaScript — Create order
+await fetch('${base}/order', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    orderId: '#CRZ123456',
+    bigItems: [1, 3, 5],
+    smallItems: [2, 4],
+    total: 5,
+    userId: 'LINE_USER_ID'
+  })
+});
+
+// PHP — Get orders
+$orders = json_decode(file_get_contents('${base}/api/orders?limit=10'));
+
+// Python — Get stock
+import requests
+stock = requests.get('${base}/api/stock').json()
+    </pre>
+  `;
+}
+
+function apiCard(method, path, desc, note) {
+  const colors = { GET: '#27ae60', POST: '#2980b9', PUT: '#f39c12', DELETE: '#e74c3c' };
+  return `<div style="padding:12px 16px;background:#fafaf8;border-radius:8px;border-left:3px solid ${colors[method] || '#999'}">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="background:${colors[method]};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${method}</span>
+      <code style="font-size:13px;font-weight:600">${path}</code>
+    </div>
+    <div style="font-size:12px;color:#666">${desc}</div>
+    ${note ? '<div style="font-size:11px;color:#999;margin-top:2px">' + note + '</div>' : ''}
+  </div>`;
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// Close modal on bg click
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('show'); });
+});
+</script>
+</body>
+</html>
