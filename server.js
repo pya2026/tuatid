@@ -651,8 +651,8 @@ async function handleEvent(event) {
           ]}
         ]},
         body: { type: 'box', layout: 'vertical', paddingAll: '16px', contents: [
-          { type: 'text', text: '✨ สั่งตัวติด 3D', weight: 'bold', size: 'lg', color: '#333' },
-          { type: 'text', text: 'เลือกลาย/เลือกไซห์ สั่งได้หลายแบบ', size: 'sm', color: '#888', margin: 'md', wrap: true }
+          { type: 'text', text: '✨ สั่งตัวติด 3D', weight: 'bold', size: 'lg', color: '#333333' },
+          { type: 'text', text: 'เลือกลาย/เลือกไซห์ สั่งได้หลายแบบ', size: 'sm', color: '#888888', margin: 'md', wrap: true }
         ]},
         footer: { type: 'box', layout: 'vertical', paddingAll: '12px', contents: [
           { type: 'button', action: { type: 'uri', label: 'เปิดสั่งซื้อ', uri: LIFF_URL }, style: 'primary', color: '#F5C518' }
