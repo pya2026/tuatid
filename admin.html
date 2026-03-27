@@ -187,7 +187,7 @@
         </div>
         <div class="panel-body">
           <table id="productsTable">
-            <thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Category</th><th>Size</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
+            <thead><tr><th>ID</th><th>Code</th><th>Image</th><th>Name</th><th>Category</th><th>Size</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -230,16 +230,16 @@
     <h3 id="productModalTitle">Add Product</h3>
     <input type="hidden" id="editProductId">
     <div class="form-row">
+      <div class="form-group"><label>Product Code</label><input id="pCode" placeholder="A001"></div>
       <div class="form-group"><label>Name</label><input id="pName" placeholder="แบบ 1"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>Category</label><select id="pCategory"><option value="">-- No Category --</option></select></div>
-    </div>
-    <div class="form-row">
       <div class="form-group"><label>Size</label><select id="pSize"><option value="big">BIG</option><option value="small">SMALL</option></select></div>
-      <div class="form-group"><label>Stock</label><input type="number" id="pStock" placeholder="0"></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label>Stock</label><input type="number" id="pStock" placeholder="0"></div>
       <div class="form-group"><label>Price</label><input type="number" id="pPrice" placeholder="0"></div>
-      <div class="form-group"></div>
     </div>
     <div class="form-group"><label>Image URL</label><input id="pImage" placeholder="https://..."></div>
     <div class="form-group"><label>Sort Order</label><input type="number" id="pSort" placeholder="0"></div>
@@ -429,24 +429,26 @@ async function loadProducts() {
   const res = await fetch(url);
   const d = await res.json();
   const tbody = document.querySelector('#productsTable tbody');
-  tbody.innerHTML = d.products.map(p => `<tr>
+  tbody.innerHTML = d.products.map(p => `<tr style="${p.stock <= 0 ? 'opacity:0.5;background:#f9f9f9' : ''}">
     <td>${p.id}</td>
+    <td><code style="background:#f5f5f0;padding:2px 6px;border-radius:4px;font-size:12px">${p.code || '-'}</code></td>
     <td>${p.image_url ? '<img class="img-preview" src="' + p.image_url + '">' : '<div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>'}</td>
     <td><strong>${p.name}</strong></td>
     <td>${p.category_name ? '<span style="background:#FFF9C4;color:#F57F17;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">' + p.category_name + '</span>' : '<span style="color:#ccc">-</span>'}</td>
     <td><span class="badge ${p.size === 'big' ? 'confirmed' : 'active'}">${p.size.toUpperCase()}</span></td>
-    <td class="${p.stock <= 5 ? 'stock-low' : ''}">${p.stock}</td>
+    <td class="${p.stock <= 0 ? 'stock-low' : p.stock <= 5 ? 'stock-low' : ''}">${p.stock}${p.stock <= 0 ? ' ❌' : ''}</td>
     <td><span class="badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'Active' : 'Off'}</span></td>
     <td>
       <button class="btn btn-sm btn-outline" onclick="editProduct(${p.id})">Edit</button>
       <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">Del</button>
     </td>
-  </tr>`).join('') || '<tr><td colspan="8" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="9" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
 }
 
 function openAddProduct() {
   document.getElementById('editProductId').value = '';
   document.getElementById('productModalTitle').textContent = 'Add Product';
+  document.getElementById('pCode').value = '';
   document.getElementById('pName').value = '';
   document.getElementById('pSize').value = 'big';
   document.getElementById('pStock').value = '0';
@@ -463,6 +465,7 @@ async function editProduct(id) {
   if (!p) return;
   document.getElementById('editProductId').value = id;
   document.getElementById('productModalTitle').textContent = 'Edit: ' + p.name;
+  document.getElementById('pCode').value = p.code || '';
   document.getElementById('pName').value = p.name;
   document.getElementById('pSize').value = p.size;
   document.getElementById('pStock').value = p.stock;
@@ -478,6 +481,7 @@ async function saveProduct() {
   const catVal = document.getElementById('pCategory').value;
   const body = {
     key: adminKey,
+    code: document.getElementById('pCode').value,
     name: document.getElementById('pName').value,
     category_id: catVal ? parseInt(catVal) : null,
     size: document.getElementById('pSize').value,
