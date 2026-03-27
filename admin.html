@@ -127,6 +127,7 @@
   <nav class="sidebar">
     <div class="logo">CRUZY</div>
     <a href="#" class="active" onclick="showTab('dashboard')" data-tab="dashboard"><span class="icon">📊</span><span>Dashboard</span></a>
+    <a href="#" onclick="showTab('categories')" data-tab="categories"><span class="icon">🏷️</span><span>Categories</span></a>
     <a href="#" onclick="showTab('products')" data-tab="products"><span class="icon">📦</span><span>Products</span></a>
     <a href="#" onclick="showTab('orders')" data-tab="orders"><span class="icon">🛒</span><span>Orders</span></a>
     <a href="#" onclick="showTab('api')" data-tab="api"><span class="icon">🔗</span><span>API</span></a>
@@ -146,6 +147,24 @@
       </div>
     </div>
 
+    <!-- ─── Tab: Categories ─── -->
+    <div class="tab-content" id="tab-categories">
+      <div class="topbar">
+        <h1>Categories (หมวดสินค้า)</h1>
+        <div class="actions">
+          <button class="btn btn-primary" onclick="openAddCategory()">+ Add Category</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <table id="categoriesTable">
+            <thead><tr><th>ID</th><th>Name</th><th>Slug</th><th>Sort</th><th>Products</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── Tab: Products ─── -->
     <div class="tab-content" id="tab-products">
       <div class="topbar">
@@ -158,6 +177,9 @@
         <div class="panel-header">
           <h2>All Products</h2>
           <div style="display:flex;gap:8px">
+            <select id="filterCat" onchange="loadProducts()" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:12px">
+              <option value="">All Categories</option>
+            </select>
             <select id="filterSize" onchange="loadProducts()" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:6px;font-size:12px">
               <option value="">All Sizes</option><option value="big">BIG</option><option value="small">SMALL</option>
             </select>
@@ -165,7 +187,7 @@
         </div>
         <div class="panel-body">
           <table id="productsTable">
-            <thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Size</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
+            <thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Category</th><th>Size</th><th>Stock</th><th>Active</th><th>Actions</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -209,17 +231,38 @@
     <input type="hidden" id="editProductId">
     <div class="form-row">
       <div class="form-group"><label>Name</label><input id="pName" placeholder="แบบ 1"></div>
-      <div class="form-group"><label>Size</label><select id="pSize"><option value="big">BIG</option><option value="small">SMALL</option></select></div>
+      <div class="form-group"><label>Category</label><select id="pCategory"><option value="">-- No Category --</option></select></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label>Size</label><select id="pSize"><option value="big">BIG</option><option value="small">SMALL</option></select></div>
       <div class="form-group"><label>Stock</label><input type="number" id="pStock" placeholder="0"></div>
+    </div>
+    <div class="form-row">
       <div class="form-group"><label>Price</label><input type="number" id="pPrice" placeholder="0"></div>
+      <div class="form-group"></div>
     </div>
     <div class="form-group"><label>Image URL</label><input id="pImage" placeholder="https://..."></div>
     <div class="form-group"><label>Sort Order</label><input type="number" id="pSort" placeholder="0"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveProduct()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Category Modal ═══ -->
+<div class="modal-bg" id="categoryModal">
+  <div class="modal">
+    <h3 id="categoryModalTitle">Add Category</h3>
+    <input type="hidden" id="editCatId">
+    <div class="form-group"><label>Name (ชื่อหมวด)</label><input id="cName" placeholder="เช่น ตัวติดใหญ่, มินิ, พิเศษ"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Slug (URL-friendly)</label><input id="cSlug" placeholder="auto-generated"></div>
+      <div class="form-group"><label>Sort Order</label><input type="number" id="cSort" placeholder="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('categoryModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCategory()">Save</button>
     </div>
   </div>
 </div>
@@ -244,6 +287,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelector('[data-tab="' + name + '"]').classList.add('active');
   if (name === 'dashboard') loadDashboard();
+  if (name === 'categories') loadCategories();
   if (name === 'products') loadProducts();
   if (name === 'orders') loadOrders();
   if (name === 'api') showApiDocs();
@@ -279,11 +323,109 @@ async function loadDashboard() {
   } catch (e) { console.error(e); }
 }
 
+// ── Categories ──
+let allCategories = [];
+
+async function loadCategories() {
+  const res = await fetch(API + '/api/categories');
+  const d = await res.json();
+  allCategories = d.categories;
+
+  // Count products per category
+  const pRes = await fetch(API + '/api/products');
+  const pData = await pRes.json();
+  const countMap = {};
+  pData.products.forEach(p => { countMap[p.category_id] = (countMap[p.category_id] || 0) + 1; });
+
+  const tbody = document.querySelector('#categoriesTable tbody');
+  tbody.innerHTML = d.categories.map(c => `<tr>
+    <td>${c.id}</td>
+    <td><strong>${c.name}</strong></td>
+    <td><code style="background:#f5f5f0;padding:2px 6px;border-radius:4px;font-size:11px">${c.slug}</code></td>
+    <td>${c.sort_order}</td>
+    <td>${countMap[c.id] || 0}</td>
+    <td><span class="badge ${c.active ? 'active' : 'inactive'}">${c.active ? 'Active' : 'Off'}</span></td>
+    <td>
+      <button class="btn btn-sm btn-outline" onclick="editCategory(${c.id})">Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteCategory(${c.id})">Del</button>
+    </td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty-msg">No categories yet. Click "+ Add Category"</td></tr>';
+
+  // Also update category dropdowns
+  updateCategoryDropdowns();
+}
+
+function updateCategoryDropdowns() {
+  const opts = '<option value="">-- No Category --</option>' +
+    allCategories.filter(c => c.active).map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  document.getElementById('pCategory').innerHTML = opts;
+
+  const filterOpts = '<option value="">All Categories</option>' +
+    allCategories.filter(c => c.active).map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+  document.getElementById('filterCat').innerHTML = filterOpts;
+}
+
+function openAddCategory() {
+  document.getElementById('editCatId').value = '';
+  document.getElementById('categoryModalTitle').textContent = 'Add Category';
+  document.getElementById('cName').value = '';
+  document.getElementById('cSlug').value = '';
+  document.getElementById('cSort').value = '0';
+  document.getElementById('categoryModal').classList.add('show');
+}
+
+async function editCategory(id) {
+  const c = allCategories.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('editCatId').value = id;
+  document.getElementById('categoryModalTitle').textContent = 'Edit: ' + c.name;
+  document.getElementById('cName').value = c.name;
+  document.getElementById('cSlug').value = c.slug;
+  document.getElementById('cSort').value = c.sort_order;
+  document.getElementById('categoryModal').classList.add('show');
+}
+
+async function saveCategory() {
+  const id = document.getElementById('editCatId').value;
+  const body = {
+    key: adminKey,
+    name: document.getElementById('cName').value,
+    slug: document.getElementById('cSlug').value,
+    sort_order: parseInt(document.getElementById('cSort').value) || 0,
+  };
+  const url = id ? API + '/api/categories/' + id : API + '/api/categories';
+  const method = id ? 'PUT' : 'POST';
+  await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  closeModal('categoryModal');
+  toast(id ? 'Category updated!' : 'Category added!');
+  loadCategories();
+}
+
+async function deleteCategory(id) {
+  if (!confirm('Delete this category? Products in it will become uncategorized.')) return;
+  await fetch(API + '/api/categories/' + id, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: adminKey })
+  });
+  toast('Category deleted');
+  loadCategories();
+}
+
 // ── Products ──
 async function loadProducts() {
+  // Ensure categories are loaded
+  if (allCategories.length === 0) {
+    const cRes = await fetch(API + '/api/categories');
+    const cData = await cRes.json();
+    allCategories = cData.categories;
+    updateCategoryDropdowns();
+  }
+
   const size = document.getElementById('filterSize').value;
+  const catId = document.getElementById('filterCat').value;
   let url = API + '/api/products?';
-  if (size) url += 'size=' + size;
+  if (size) url += 'size=' + size + '&';
+  if (catId) url += 'category_id=' + catId + '&';
   const res = await fetch(url);
   const d = await res.json();
   const tbody = document.querySelector('#productsTable tbody');
@@ -291,6 +433,7 @@ async function loadProducts() {
     <td>${p.id}</td>
     <td>${p.image_url ? '<img class="img-preview" src="' + p.image_url + '">' : '<div style="width:50px;height:50px;background:#f0f0f0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>'}</td>
     <td><strong>${p.name}</strong></td>
+    <td>${p.category_name ? '<span style="background:#FFF9C4;color:#F57F17;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">' + p.category_name + '</span>' : '<span style="color:#ccc">-</span>'}</td>
     <td><span class="badge ${p.size === 'big' ? 'confirmed' : 'active'}">${p.size.toUpperCase()}</span></td>
     <td class="${p.stock <= 5 ? 'stock-low' : ''}">${p.stock}</td>
     <td><span class="badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'Active' : 'Off'}</span></td>
@@ -298,7 +441,7 @@ async function loadProducts() {
       <button class="btn btn-sm btn-outline" onclick="editProduct(${p.id})">Edit</button>
       <button class="btn btn-sm btn-danger" onclick="deleteProduct(${p.id})">Del</button>
     </td>
-  </tr>`).join('') || '<tr><td colspan="7" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="8" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
 }
 
 function openAddProduct() {
@@ -326,14 +469,17 @@ async function editProduct(id) {
   document.getElementById('pPrice').value = p.price;
   document.getElementById('pImage').value = p.image_url;
   document.getElementById('pSort').value = p.sort_order;
+  document.getElementById('pCategory').value = p.category_id || '';
   document.getElementById('productModal').classList.add('show');
 }
 
 async function saveProduct() {
   const id = document.getElementById('editProductId').value;
+  const catVal = document.getElementById('pCategory').value;
   const body = {
     key: adminKey,
     name: document.getElementById('pName').value,
+    category_id: catVal ? parseInt(catVal) : null,
     size: document.getElementById('pSize').value,
     stock: parseInt(document.getElementById('pStock').value) || 0,
     price: parseFloat(document.getElementById('pPrice').value) || 0,

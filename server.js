@@ -39,9 +39,18 @@ db.pragma('journal_mode = WAL');
 
 // Create tables
 db.exec(`
+  CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    sort_order INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1
+  );
+
   CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    category_id INTEGER DEFAULT NULL,
     size TEXT NOT NULL DEFAULT 'big',
     stock INTEGER NOT NULL DEFAULT 0,
     price REAL DEFAULT 0,
@@ -49,7 +58,8 @@ db.exec(`
     active INTEGER DEFAULT 1,
     sort_order INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (category_id) REFERENCES categories(id)
   );
 
   CREATE TABLE IF NOT EXISTS orders (
@@ -92,6 +102,7 @@ app.get('/', (req, res) => {
     service: 'CRUZY Webhook', version: '3.0', status: 'running',
     endpoints: {
       admin: '/admin',
+      categories: '/api/categories',
       products: '/api/products',
       orders: '/api/orders',
       stock: '/api/stock',
@@ -113,29 +124,68 @@ app.get('/admin', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
+//  API: CATEGORIES
+// ═══════════════════════════════════════════════
+app.get('/api/categories', (req, res) => {
+  const cats = db.prepare('SELECT * FROM categories ORDER BY sort_order, id').all();
+  res.json({ count: cats.length, categories: cats });
+});
+
+app.post('/api/categories', express.json(), (req, res) => {
+  const { key, name, slug, sort_order } = req.body;
+  if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
+  const s = slug || name.toLowerCase().replace(/[^a-z0-9ก-๙]+/g, '-').replace(/-+$/, '');
+  const result = db.prepare('INSERT INTO categories (name, slug, sort_order) VALUES (?, ?, ?)').run(name, s, sort_order || 0);
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+app.put('/api/categories/:id', express.json(), (req, res) => {
+  const { key, name, slug, sort_order, active } = req.body;
+  if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
+  const updates = []; const vals = [];
+  if (name !== undefined) { updates.push('name = ?'); vals.push(name); }
+  if (slug !== undefined) { updates.push('slug = ?'); vals.push(slug); }
+  if (sort_order !== undefined) { updates.push('sort_order = ?'); vals.push(sort_order); }
+  if (active !== undefined) { updates.push('active = ?'); vals.push(active ? 1 : 0); }
+  if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+  vals.push(req.params.id);
+  db.prepare('UPDATE categories SET ' + updates.join(', ') + ' WHERE id = ?').run(...vals);
+  res.json({ success: true });
+});
+
+app.delete('/api/categories/:id', express.json(), (req, res) => {
+  const key = req.body.key || req.query.key;
+  if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
+  db.prepare('UPDATE products SET category_id = NULL WHERE category_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════
 //  API: PRODUCTS
 // ═══════════════════════════════════════════════
 
-// GET /api/products — list all products
+// GET /api/products — list all (with category name)
 app.get('/api/products', (req, res) => {
-  const { size, active } = req.query;
-  let sql = 'SELECT * FROM products WHERE 1=1';
+  const { size, active, category_id } = req.query;
+  let sql = 'SELECT p.*, c.name as category_name, c.slug as category_slug FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE 1=1';
   const params = [];
-  if (size) { sql += ' AND size = ?'; params.push(size); }
-  if (active !== undefined) { sql += ' AND active = ?'; params.push(active === 'true' ? 1 : 0); }
-  sql += ' ORDER BY sort_order, id';
+  if (size) { sql += ' AND p.size = ?'; params.push(size); }
+  if (active !== undefined) { sql += ' AND p.active = ?'; params.push(active === 'true' ? 1 : 0); }
+  if (category_id) { sql += ' AND p.category_id = ?'; params.push(parseInt(category_id)); }
+  sql += ' ORDER BY p.sort_order, p.id';
   const products = db.prepare(sql).all(...params);
   res.json({ count: products.length, products });
 });
 
 // POST /api/products — add product
 app.post('/api/products', express.json(), (req, res) => {
-  const { key, name, size, stock, price, image_url, active, sort_order } = req.body;
+  const { key, name, size, stock, price, image_url, active, sort_order, category_id } = req.body;
   if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
   const stmt = db.prepare(
-    'INSERT INTO products (name, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO products (name, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  const result = stmt.run(name || 'New', size || 'big', stock || 0, price || 0, image_url || '', active !== false ? 1 : 0, sort_order || 0);
+  const result = stmt.run(name || 'New', category_id || null, size || 'big', stock || 0, price || 0, image_url || '', active !== false ? 1 : 0, sort_order || 0);
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -144,7 +194,7 @@ app.put('/api/products/:id', express.json(), (req, res) => {
   const { key, ...fields } = req.body;
   if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
 
-  const allowed = ['name', 'size', 'stock', 'price', 'image_url', 'active', 'sort_order'];
+  const allowed = ['name', 'category_id', 'size', 'stock', 'price', 'image_url', 'active', 'sort_order'];
   const updates = [];
   const values = [];
   for (const [k, v] of Object.entries(fields)) {
@@ -176,12 +226,12 @@ app.post('/api/products/bulk', express.json(), (req, res) => {
   if (!Array.isArray(products)) return res.status(400).json({ error: 'products must be array' });
 
   const stmt = db.prepare(
-    'INSERT INTO products (name, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO products (name, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
   const insert = db.transaction((items) => {
     let count = 0;
     for (const p of items) {
-      stmt.run(p.name || 'New', p.size || 'big', p.stock || 0, p.price || 0, p.image_url || '', p.active !== false ? 1 : 0, p.sort_order || 0);
+      stmt.run(p.name || 'New', p.category_id || null, p.size || 'big', p.stock || 0, p.price || 0, p.image_url || '', p.active !== false ? 1 : 0, p.sort_order || 0);
       count++;
     }
     return count;
@@ -189,6 +239,35 @@ app.post('/api/products/bulk', express.json(), (req, res) => {
 
   const count = insert(products);
   res.json({ success: true, inserted: count });
+});
+
+// GET /api/products/grouped — products grouped by category (for LIFF)
+app.get('/api/products/grouped', (req, res) => {
+  const cats = db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, id').all();
+  const products = db.prepare(
+    'SELECT p.*, c.name as category_name, c.slug as category_slug FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = 1 ORDER BY p.sort_order, p.id'
+  ).all();
+
+  // Group by category
+  const grouped = [];
+  const catMap = {};
+  cats.forEach(c => { catMap[c.id] = { ...c, products: [] }; });
+
+  // Uncategorized bucket
+  const uncategorized = { id: 0, name: 'อื่นๆ', slug: 'other', products: [] };
+
+  products.forEach(p => {
+    if (p.category_id && catMap[p.category_id]) {
+      catMap[p.category_id].products.push(p);
+    } else {
+      uncategorized.products.push(p);
+    }
+  });
+
+  cats.forEach(c => { if (catMap[c.id].products.length > 0) grouped.push(catMap[c.id]); });
+  if (uncategorized.products.length > 0) grouped.push(uncategorized);
+
+  res.json({ count: products.length, categories: grouped });
 });
 
 // ═══════════════════════════════════════════════
@@ -304,8 +383,14 @@ app.get('/api/stats', (req, res) => {
 // ═══════════════════════════════════════════════
 app.post('/order', express.json(), async (req, res) => {
   try {
-    const { orderId, bigItems, smallItems, total, userId } = req.body;
-    if (!orderId) return res.status(400).json({ error: 'missing orderId' });
+    const { items, userId } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'missing items' });
+    }
+
+    // Generate order ID
+    const orderId = '#CRZ' + Date.now().toString().slice(-6);
+    const total = items.length;
 
     const now = new Date();
     const dateStr =
@@ -315,30 +400,37 @@ app.post('/order', express.json(), async (req, res) => {
       String(now.getHours()).padStart(2, '0') + ':' +
       String(now.getMinutes()).padStart(2, '0');
 
+    // Calculate total price
+    let totalPrice = 0;
+    items.forEach(it => { totalPrice += (it.price || 0) * (it.quantity || 1); });
+
     // ── Save order to DB ────────────────
     db.prepare(`
       INSERT OR IGNORE INTO orders (order_id, user_id, big_items, small_items, total, status, created_at)
       VALUES (?, ?, ?, ?, ?, 'confirmed', ?)
-    `).run(orderId, userId || null, JSON.stringify(bigItems || []), JSON.stringify(smallItems || []), total || 0, dateStr);
+    `).run(orderId, userId || null, JSON.stringify(items), '[]', total, dateStr);
 
     // ── Save order items + update stock ─
-    const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, size, qty) VALUES (?, ?, ?, 1)');
-    const decStock = db.prepare('UPDATE products SET stock = MAX(0, stock - 1), updated_at = datetime(\'now\') WHERE id = ?');
-    const processItems = db.transaction((bigs, smalls) => {
-      for (const id of bigs) { insertItem.run(orderId, id, 'big'); decStock.run(id); }
-      for (const id of smalls) { insertItem.run(orderId, id, 'small'); decStock.run(id); }
+    const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, size, qty) VALUES (?, ?, ?, ?)');
+    const decStock = db.prepare('UPDATE products SET stock = MAX(0, stock - ?) , updated_at = datetime(\'now\') WHERE id = ?');
+    const processItems = db.transaction((orderItems) => {
+      for (const it of orderItems) {
+        const qty = it.quantity || 1;
+        insertItem.run(orderId, it.product_id, 'standard', qty);
+        decStock.run(qty, it.product_id);
+      }
     });
-    processItems(bigItems || [], smallItems || []);
+    processItems(items);
 
-    // ── Get product names for PDF ───────
-    const allProducts = db.prepare('SELECT * FROM products').all();
+    // ── Get product details for PDF ─────
+    const allProducts = db.prepare('SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id').all();
 
     // ── Generate PDF ────────────────────
     const filename = orderId.replace('#', '') + '.pdf';
     const filepath = path.join(pdfDir, filename);
     const pdfUrl = BASE_URL + '/pdf/' + filename;
 
-    await generatePDF(filepath, { orderId, bigItems, smallItems, total, dateStr, products: allProducts });
+    await generatePDF(filepath, { orderId, items, total, totalPrice, dateStr, products: allProducts });
 
     // Update order with PDF URL
     db.prepare('UPDATE orders SET pdf_url = ? WHERE order_id = ?').run(pdfUrl, orderId);
@@ -346,7 +438,7 @@ app.post('/order', express.json(), async (req, res) => {
     // ── Push Flex Message ───────────────
     if (userId) {
       try {
-        const flexMsg = buildReceiptFlex(orderId, bigItems, smallItems, total, dateStr, pdfUrl);
+        const flexMsg = buildReceiptFlex(orderId, items, total, totalPrice, dateStr, pdfUrl, allProducts);
         await client.pushMessage({ to: userId, messages: [flexMsg] });
       } catch (e) { console.error('Push error:', e.message); }
     }
@@ -388,40 +480,49 @@ function generatePDF(filepath, data) {
 
     let y = iy + 70;
 
-    function drawTable(title, items, color) {
-      if (!items || items.length === 0) return;
-      doc.fontSize(13).font('Helvetica-Bold').fillColor(color).text(title + ' (' + items.length + ')', 40, y);
+    // Group items by category
+    const groups = {};
+    (data.items || []).forEach(it => {
+      const prod = data.products ? data.products.find(p => p.id === it.product_id) : null;
+      const cat = (prod && prod.category_name) || 'Other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push({ ...it, productData: prod });
+    });
+
+    Object.keys(groups).forEach(cat => {
+      const items = groups[cat];
+      doc.fontSize(13).font('Helvetica-Bold').fillColor('#2c5282').text(cat + ' (' + items.length + ')', 40, y);
       y += 22;
 
       // Header row
       doc.roundedRect(40, y, W - 80, 18, 3).fill('#f0f0ee');
       doc.fontSize(8).font('Helvetica-Bold').fillColor('#666');
-      doc.text('#', 50, y + 4); doc.text('Name', 80, y + 4); doc.text('Size', 350, y + 4);
-      doc.text('Qty', 420, y + 4); doc.text('Status', 470, y + 4);
+      doc.text('#', 50, y + 4); doc.text('Name', 80, y + 4);
+      doc.text('Qty', 370, y + 4); doc.text('Price', 420, y + 4); doc.text('Status', 480, y + 4);
       y += 22;
 
-      items.forEach((id, i) => {
+      items.forEach((it, i) => {
         if (i % 2 === 0) doc.rect(40, y - 2, W - 80, 18).fill('#fafaf8');
-        let pName = '#' + id;
-        if (data.products) { const p = data.products.find(pp => pp.id === id); if (p) pName = p.name; }
+        const pName = (it.productData && it.productData.name) || it.name || '#' + it.product_id;
+        const price = it.price || 0;
         doc.fontSize(8).font('Helvetica').fillColor('#333');
         doc.text(String(i + 1), 50, y + 2); doc.text(pName, 80, y + 2);
-        doc.text(title.includes('BIG') ? 'BIG' : 'SMALL', 350, y + 2);
-        doc.text('1', 420, y + 2); doc.fillColor('#27ae60').text('OK', 470, y + 2);
+        doc.text(String(it.quantity || 1), 370, y + 2);
+        doc.text(price > 0 ? price.toLocaleString() + ' B' : '-', 420, y + 2);
+        doc.fillColor('#27ae60').text('OK', 480, y + 2);
         y += 18;
       });
       y += 8;
-    }
-
-    drawTable('BIG Stickers', data.bigItems, '#2c5282');
-    drawTable('SMALL Stickers', data.smallItems, '#2b6cb0');
+    });
 
     // Total
     doc.moveTo(40, y).lineTo(W - 40, y).strokeColor(gold).lineWidth(2).stroke();
     y += 8;
     doc.roundedRect(40, y, W - 80, 40, 6).fill(dark);
+    let totalText = 'TOTAL: ' + (data.total || 0) + ' items';
+    if (data.totalPrice > 0) totalText += '  |  ' + data.totalPrice.toLocaleString() + ' Baht';
     doc.fontSize(15).font('Helvetica-Bold').fillColor(gold)
-      .text('TOTAL: ' + (data.total || 0) + ' items', 0, y + 12, { align: 'center', width: W });
+      .text(totalText, 0, y + 12, { align: 'center', width: W });
     y += 55;
 
     doc.fontSize(9).font('Helvetica').fillColor('#999')
@@ -441,31 +542,40 @@ function generatePDF(filepath, data) {
 // ═══════════════════════════════════════════════
 //  Flex Message
 // ═══════════════════════════════════════════════
-function buildReceiptFlex(orderId, bigItems, smallItems, total, dateStr, pdfUrl) {
+function buildReceiptFlex(orderId, items, total, totalPrice, dateStr, pdfUrl, allProducts) {
   const body = [
     { type: 'text', text: orderId, weight: 'bold', size: 'lg', color: '#1a1a1a' },
     { type: 'text', text: dateStr, size: 'xs', color: '#999999', margin: 'sm' },
     { type: 'separator', margin: 'lg' }
   ];
-  if (bigItems && bigItems.length > 0) {
+
+  // Group by category
+  const groups = {};
+  items.forEach(it => {
+    const prod = allProducts ? allProducts.find(p => p.id === it.product_id) : null;
+    const cat = (prod && prod.category_name) || 'Other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push({ ...it, productData: prod });
+  });
+
+  Object.keys(groups).forEach(cat => {
+    const catItems = groups[cat];
     body.push({ type: 'box', layout: 'horizontal', margin: 'lg', contents: [
-      { type: 'text', text: 'BIG', weight: 'bold', size: 'sm', color: '#2c5282', flex: 2 },
-      { type: 'text', text: bigItems.length + ' bags', size: 'sm', color: '#444', align: 'end', flex: 1 }
+      { type: 'text', text: cat, weight: 'bold', size: 'sm', color: '#2c5282', flex: 2 },
+      { type: 'text', text: catItems.length + ' items', size: 'sm', color: '#444', align: 'end', flex: 1 }
     ]});
-    body.push({ type: 'text', text: bigItems.map(id => '#' + id).join(', '), size: 'xs', color: '#888', wrap: true, margin: 'sm' });
-  }
-  if (smallItems && smallItems.length > 0) {
-    body.push({ type: 'box', layout: 'horizontal', margin: 'lg', contents: [
-      { type: 'text', text: 'SMALL', weight: 'bold', size: 'sm', color: '#2b6cb0', flex: 2 },
-      { type: 'text', text: smallItems.length + ' bags', size: 'sm', color: '#444', align: 'end', flex: 1 }
-    ]});
-    body.push({ type: 'text', text: smallItems.map(id => '#' + id).join(', '), size: 'xs', color: '#888', wrap: true, margin: 'sm' });
-  }
+    const names = catItems.map(it => (it.productData && it.productData.name) || it.name || '#' + it.product_id).join(', ');
+    body.push({ type: 'text', text: names, size: 'xs', color: '#888', wrap: true, margin: 'sm' });
+  });
+
   body.push({ type: 'separator', margin: 'lg' });
+  let totalText = total + ' items';
+  if (totalPrice > 0) totalText += ' | ' + totalPrice.toLocaleString() + ' B';
   body.push({ type: 'box', layout: 'horizontal', margin: 'lg', contents: [
     { type: 'text', text: 'Total', weight: 'bold', size: 'md', color: '#1a1a1a' },
-    { type: 'text', text: total + ' bags', weight: 'bold', size: 'md', color: '#C9A800', align: 'end' }
+    { type: 'text', text: totalText, weight: 'bold', size: 'md', color: '#C9A800', align: 'end' }
   ]});
+
   return {
     type: 'flex', altText: 'CRUZY Order ' + orderId,
     contents: {
