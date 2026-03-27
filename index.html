@@ -419,13 +419,15 @@ function hideConfirm() { document.getElementById('overlay').classList.remove('sh
 /* ═══ LIFF Init ═══ */
 let liffReady = false;
 const LIFF_ID = '2009609185-pRes2K3v';
+const SERVER_URL = 'https://tuatid-production-13e1.up.railway.app';
 
 async function initLiff() {
   try {
     await liff.init({ liffId: LIFF_ID });
     liffReady = true;
     console.log('LIFF initialized OK. isInClient:', liff.isInClient());
-    if (!liff.isLoggedIn()) {
+    // Only force login in external browser, not inside LINE app
+    if (!liff.isInClient() && !liff.isLoggedIn()) {
       liff.login();
     }
   } catch(e) {
@@ -434,53 +436,44 @@ async function initLiff() {
 }
 initLiff();
 
-/* ═══ Submit — Send to LINE Chat ═══ */
+/* ═══ Submit — Send order to server → PDF + Flex receipt in chat ═══ */
 async function submitOrder() {
   hideConfirm();
+  showToast('Sending order...');
+
   const orderId = '#CRZ' + Date.now().toString().slice(-6);
   const bigItems = [...selected.big].sort((a,b)=>a-b);
   const smallItems = [...selected.small].sort((a,b)=>a-b);
   const total = bigItems.length + smallItems.length;
-  const now = new Date();
-  const dateStr = now.getFullYear()+'-'+(''+(now.getMonth()+1)).padStart(2,'0')+'-'+(''+ now.getDate()).padStart(2,'0')+' '+(''+ now.getHours()).padStart(2,'0')+':'+(''+ now.getMinutes()).padStart(2,'0');
 
-  // Build order summary text
-  let msg = '📋 คำสั่งซื้อ CRUZY\n';
-  msg += '━━━━━━━━━━━━━━━\n';
-  msg += orderId + '  |  ' + dateStr + '\n\n';
-
-  if (bigItems.length > 0) {
-    msg += '🔷 ตัวติดใหญ่ (' + bigItems.length + ' ถุง)\n';
-    msg += bigItems.map(id => '#' + id).join(', ') + '\n\n';
-  }
-  if (smallItems.length > 0) {
-    msg += '🔹 ตัวติดเล็ก (' + smallItems.length + ' ถุง)\n';
-    msg += smallItems.map(id => '#' + id).join(', ') + '\n\n';
-  }
-
-  msg += '━━━━━━━━━━━━━━━\n';
-  msg += '✅ รวมทั้งหมด: ' + total + ' ถุง\n';
-  msg += '(ใหญ่ ' + bigItems.length + ' / เล็ก ' + smallItems.length + ')\n\n';
-  msg += 'ขอบคุณที่สั่งซื้อครับ! 🙏\nทีม CRUZY จะติดต่อกลับภายใน 24 ชม.';
-
-  // Try to send via LIFF
-  if (liffReady && liff.isInClient()) {
+  // Get LINE userId from LIFF profile
+  let userId = null;
+  if (liffReady) {
     try {
-      await liff.sendMessages([{
-        type: 'text',
-        text: msg
-      }]);
-      // Close LIFF and go back to chat
-      liff.closeWindow();
-    } catch(e) {
-      console.error('sendMessages error:', e);
-      alert('ส่งข้อความไม่สำเร็จ: ' + e.message);
-      // Fallback: show summary in-app
-      showInAppSummary(orderId, bigItems, smallItems, total, msg);
-    }
+      const profile = await liff.getProfile();
+      userId = profile.userId;
+    } catch(e) { console.error('getProfile:', e); }
+  }
+
+  // Send order to server (server generates PDF + pushes Flex receipt)
+  try {
+    const resp = await fetch(SERVER_URL + '/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, bigItems, smallItems, total, userId })
+    });
+    const result = await resp.json();
+    console.log('Order sent:', result);
+  } catch(e) {
+    console.error('Send order error:', e);
+  }
+
+  // Close LIFF window (goes back to LINE chat where Flex receipt will appear)
+  if (liffReady && liff.isInClient()) {
+    liff.closeWindow();
   } else {
-    // Not in LINE app — show summary in-app as fallback
-    showInAppSummary(orderId, bigItems, smallItems, total, msg);
+    // Fallback for external browser
+    showInAppSummary(orderId, bigItems, smallItems, total, '');
   }
 }
 
