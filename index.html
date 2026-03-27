@@ -291,7 +291,8 @@ function buildProductSections(filter) {
 
       const imgSrc = p.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2255%22 text-anchor=%22middle%22 fill=%22%23ccc%22 font-size=%2214%22>No Image</text></svg>';
       html += '<div class="st-img"><img src="' + imgSrc + '" alt="' + p.name + '" loading="lazy" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/><text x=%2250%22 y=%2255%22 text-anchor=%22middle%22 fill=%22%23ccc%22 font-size=%2214%22>No Image</text></svg>\'"></div>';
-      html += '<div class="st-label">' + p.name + '</div>';
+      const displayName = p.code ? (p.code + ' ' + p.name) : p.name;
+      html += '<div class="st-label">' + displayName + '</div>';
       if (p.price > 0) {
         html += '<div class="st-price">฿' + p.price.toLocaleString() + '</div>';
       }
@@ -429,8 +430,6 @@ async function submitOrder() {
     return { product_id: id, name: p ? p.name : 'Unknown', quantity: 1, price: p ? (p.price||0) : 0 };
   });
 
-  showToast('คอนเฟิร์มการสั่งแล้ว!');
-
   // Get LINE userId
   let userId = null;
   if (liffReady) {
@@ -442,12 +441,34 @@ async function submitOrder() {
 
   // Send to server
   try {
-    await fetch(SERVER_URL + '/order', {
+    const res = await fetch(SERVER_URL + '/order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items, userId })
     });
-  } catch(e) { console.error('Send order error:', e); }
+    const data = await res.json();
+
+    // Handle out-of-stock error
+    if (!res.ok && data.error === 'out_of_stock') {
+      const names = data.outOfStock.map(x => x.name).join(', ');
+      alert('สินค้าหมดแล้ว: ' + names + '\n\nกรุณาเลือกใหม่อีกครั้ง');
+      // Remove out-of-stock items from selection and reload
+      data.outOfStock.forEach(x => selectedIds.delete(x.product_id));
+      await loadProducts(); // Refresh data
+      return;
+    }
+
+    if (!res.ok) {
+      alert('เกิดข้อผิดพลาด: ' + (data.message || data.error));
+      return;
+    }
+
+    showToast('คอนเฟิร์มการสั่งแล้ว!');
+  } catch(e) {
+    console.error('Send order error:', e);
+    alert('ไม่สามารถส่งคำสั่งซื้อได้ กรุณาลองใหม่');
+    return;
+  }
 
   // Close LIFF
   if (liffReady && liff.isInClient()) {

@@ -89,6 +89,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 `);
 
+// ── Migration: add 'code' column if not exists ──
+try {
+  db.prepare("SELECT code FROM products LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE products ADD COLUMN code TEXT DEFAULT ''");
+  console.log('Migration: added code column to products');
+}
+
 // ═══════════════════════════════════════════════
 //  EXPRESS APP
 // ═══════════════════════════════════════════════
@@ -180,12 +188,12 @@ app.get('/api/products', (req, res) => {
 
 // POST /api/products — add product
 app.post('/api/products', express.json(), (req, res) => {
-  const { key, name, size, stock, price, image_url, active, sort_order, category_id } = req.body;
+  const { key, name, code, size, stock, price, image_url, active, sort_order, category_id } = req.body;
   if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
   const stmt = db.prepare(
-    'INSERT INTO products (name, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO products (name, code, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  const result = stmt.run(name || 'New', category_id || null, size || 'big', stock || 0, price || 0, image_url || '', active !== false ? 1 : 0, sort_order || 0);
+  const result = stmt.run(name || 'New', code || '', category_id || null, size || 'big', stock || 0, price || 0, image_url || '', active !== false ? 1 : 0, sort_order || 0);
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
@@ -194,7 +202,7 @@ app.put('/api/products/:id', express.json(), (req, res) => {
   const { key, ...fields } = req.body;
   if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
 
-  const allowed = ['name', 'category_id', 'size', 'stock', 'price', 'image_url', 'active', 'sort_order'];
+  const allowed = ['name', 'code', 'category_id', 'size', 'stock', 'price', 'image_url', 'active', 'sort_order'];
   const updates = [];
   const values = [];
   for (const [k, v] of Object.entries(fields)) {
@@ -226,12 +234,12 @@ app.post('/api/products/bulk', express.json(), (req, res) => {
   if (!Array.isArray(products)) return res.status(400).json({ error: 'products must be array' });
 
   const stmt = db.prepare(
-    'INSERT INTO products (name, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO products (name, code, category_id, size, stock, price, image_url, active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
   const insert = db.transaction((items) => {
     let count = 0;
     for (const p of items) {
-      stmt.run(p.name || 'New', p.category_id || null, p.size || 'big', p.stock || 0, p.price || 0, p.image_url || '', p.active !== false ? 1 : 0, p.sort_order || 0);
+      stmt.run(p.name || 'New', p.code || '', p.category_id || null, p.size || 'big', p.stock || 0, p.price || 0, p.image_url || '', p.active !== false ? 1 : 0, p.sort_order || 0);
       count++;
     }
     return count;
@@ -245,7 +253,7 @@ app.post('/api/products/bulk', express.json(), (req, res) => {
 app.get('/api/products/grouped', (req, res) => {
   const cats = db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, id').all();
   const products = db.prepare(
-    'SELECT p.*, c.name as category_name, c.slug as category_slug FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = 1 ORDER BY p.sort_order, p.id'
+    'SELECT p.*, c.name as category_name, c.slug as category_slug FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = 1 ORDER BY CASE WHEN p.stock <= 0 THEN 1 ELSE 0 END, p.code ASC, p.sort_order, p.id'
   ).all();
 
   // Group by category
@@ -264,10 +272,16 @@ app.get('/api/products/grouped', (req, res) => {
     }
   });
 
-  cats.forEach(c => { if (catMap[c.id].products.length > 0) grouped.push(catMap[c.id]); });
-  if (uncategorized.products.length > 0) grouped.push(uncategorized);
+  cats.forEach(c => {
+    if (catMap[c.id].products.length > 0) {
+      grouped.push({ category: catMap[c.id].name, slug: catMap[c.id].slug, products: catMap[c.id].products });
+    }
+  });
+  if (uncategorized.products.length > 0) {
+    grouped.push({ category: uncategorized.name, slug: uncategorized.slug, products: uncategorized.products });
+  }
 
-  res.json({ count: products.length, categories: grouped });
+  res.json({ count: products.length, groups: grouped });
 });
 
 // ═══════════════════════════════════════════════
@@ -400,6 +414,23 @@ app.post('/order', express.json(), async (req, res) => {
       String(now.getHours()).padStart(2, '0') + ':' +
       String(now.getMinutes()).padStart(2, '0');
 
+    // ── Check stock before processing ──
+    const outOfStock = [];
+    const getProduct = db.prepare('SELECT id, name, stock FROM products WHERE id = ?');
+    for (const it of items) {
+      const prod = getProduct.get(it.product_id);
+      if (!prod || prod.stock < (it.quantity || 1)) {
+        outOfStock.push({ product_id: it.product_id, name: it.name || (prod && prod.name) || 'Unknown', available: prod ? prod.stock : 0 });
+      }
+    }
+    if (outOfStock.length > 0) {
+      return res.status(409).json({
+        error: 'out_of_stock',
+        message: 'สินค้าบางรายการหมดแล้ว',
+        outOfStock
+      });
+    }
+
     // Calculate total price
     let totalPrice = 0;
     items.forEach(it => { totalPrice += (it.price || 0) * (it.quantity || 1); });
@@ -412,7 +443,7 @@ app.post('/order', express.json(), async (req, res) => {
 
     // ── Save order items + update stock ─
     const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, size, qty) VALUES (?, ?, ?, ?)');
-    const decStock = db.prepare('UPDATE products SET stock = MAX(0, stock - ?) , updated_at = datetime(\'now\') WHERE id = ?');
+    const decStock = db.prepare('UPDATE products SET stock = MAX(0, stock - ?), updated_at = datetime(\'now\') WHERE id = ?');
     const processItems = db.transaction((orderItems) => {
       for (const it of orderItems) {
         const qty = it.quantity || 1;
