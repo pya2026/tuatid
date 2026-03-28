@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899100101102103104105106107108109110111112113114115116117118119120121122123124125126127128129130131132133134135136137138139140141142143144145146147148149150151152153154155156157158159160161162163164165166167168169170171172173174175176177178179180181182183184185186187188189190191192193194195196197198199200201202203204205206207208209210211212213214215216217218219220221222223224225226227228229230231232233234235236237238239240241242243244245246247248249250251252253254255256257258259260261262263264265266267268269270271272273274275276277278279280281282283284285286287288289290291292293294295296297298299300301302303304305306307308309310311312313314315316317318319320321322323324325326327328329330331332333334335336337338339340341342343344345346347348349350351352353354355356357358359360361362363364365366367368369370371372373374375376377378379380381382383384385386387388389390391392393394395396397398399400401402403404405406407408409410411412413414415416417418419420421422423424425426427428429430431432433434435436437438439440441442443444445446447448449450451452453454455456457458459460461462463464465466467468469470471472473474475476477478479480481482483484485486487488489490491492493494495496497498499500501502503504505506507508509510511512513514515516517518519520521522523524525526527528529530531532533534535536537538539540541542543544545546547548549550551552553554555556557558559560561562563564565566567568569570571572573574575576577578579580581582583584585586587588589590591592593594595596597598599600601602603604605606607608609610611612613614615616617618619620621622623624625626627628<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -9,6 +9,7 @@
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Inter',sans-serif;background:#f5f5f0;color:#333;min-height:100vh}
 
+
   /* ── Sidebar ── */
   .sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:#1a1a1a;color:#fff;padding:20px 0;z-index:100;display:flex;flex-direction:column}
   .sidebar .logo{font-size:24px;font-weight:700;color:#F5C518;text-align:center;padding:10px 20px 30px}
@@ -17,13 +18,16 @@
   .sidebar a .icon{font-size:18px;width:24px;text-align:center}
   .sidebar .bottom{margin-top:auto;padding:16px 24px;font-size:11px;color:#555}
 
+
   /* ── Main ── */
   .main{margin-left:220px;padding:24px}
+
 
   /* ── Top bar ── */
   .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
   .topbar h1{font-size:22px;font-weight:700;color:#1a1a1a}
   .topbar .actions{display:flex;gap:10px}
+
 
   /* ── Cards ── */
   .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px}
@@ -35,11 +39,13 @@
   .stat-card.green .value{color:#27ae60}
   .stat-card.red .value{color:#e74c3c}
 
+
   /* ── Panel ── */
   .panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:24px;overflow:hidden}
   .panel-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0}
   .panel-header h2{font-size:16px;font-weight:600}
   .panel-body{padding:20px}
+
 
   /* ── Table ── */
   table{width:100%;border-collapse:collapse}
@@ -54,6 +60,7 @@
   .badge.cancelled{background:#fde8e8;color:#e74c3c}
   .stock-low{color:#e74c3c;font-weight:600}
 
+
   /* ── Buttons ── */
   .btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;font-family:inherit}
   .btn-primary{background:#F5C518;color:#1a1a1a}.btn-primary:hover{background:#e6b800}
@@ -61,12 +68,14 @@
   .btn-outline{background:none;border:1.5px solid #ddd;color:#666}.btn-outline:hover{border-color:#999}
   .btn-danger{background:#fde8e8;color:#e74c3c}.btn-danger:hover{background:#fcc}
 
+
   /* ── Forms ── */
   .form-group{margin-bottom:14px}
   .form-group label{display:block;font-size:12px;font-weight:600;color:#666;margin-bottom:4px}
   .form-group input,.form-group select,.form-group textarea{width:100%;padding:9px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;outline:none;transition:.2s}
   .form-group input:focus,.form-group select:focus{border-color:#F5C518}
   .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
 
   /* ── Modal ── */
   .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:200}
@@ -76,11 +85,13 @@
   .modal h3{font-size:18px;margin-bottom:16px}
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 
+
   /* ── Tab nav ── */
   .tabs{display:flex;gap:0;border-bottom:2px solid #f0f0f0;margin-bottom:20px}
   .tabs button{padding:10px 20px;border:none;background:none;font-size:13px;font-weight:600;color:#999;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;font-family:inherit}
   .tabs button.active{color:#F5C518;border-bottom-color:#F5C518}
   .tab-content{display:none}.tab-content.active{display:block}
+
 
   /* ── Login ── */
   .login-wrap{display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a1a}
@@ -90,6 +101,7 @@
   .login-box input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:14px;text-align:center;margin-bottom:14px;outline:none}
   .login-box input:focus{border-color:#F5C518}
   .login-box .btn{width:100%;padding:12px;font-size:15px}
+
 
   /* ── Responsive ── */
   @media(max-width:768px){
@@ -103,6 +115,7 @@
     .form-row{grid-template-columns:1fr}
   }
 
+
   .img-preview{width:50px;height:50px;border-radius:8px;object-fit:cover;border:1px solid #eee}
   .empty-msg{text-align:center;padding:40px;color:#ccc;font-size:14px}
   .toast{position:fixed;top:20px;right:20px;background:#1a1a1a;color:#F5C518;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:.3s;pointer-events:none}
@@ -110,6 +123,7 @@
 </style>
 </head>
 <body>
+
 
 <!-- ═══ Login Screen ═══ -->
 <div id="loginScreen" class="login-wrap">
@@ -121,8 +135,10 @@
   </div>
 </div>
 
+
 <!-- ═══ Dashboard ═══ -->
 <div id="dashScreen" style="display:none">
+
 
   <nav class="sidebar">
     <div class="logo">CRUZY</div>
@@ -134,8 +150,10 @@
     <div class="bottom">CRUZY Admin v3</div>
   </nav>
 
+
   <div class="main">
     <div class="toast" id="toast"></div>
+
 
     <!-- ─── Tab: Dashboard ─── -->
     <div class="tab-content active" id="tab-dashboard">
@@ -146,6 +164,7 @@
         <div class="panel-body"><table id="recentOrdersTable"><thead><tr><th>Order</th><th>Date</th><th>Items</th><th>Status</th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
+
 
     <!-- ─── Tab: Categories ─── -->
     <div class="tab-content" id="tab-categories">
@@ -164,6 +183,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- ─── Tab: Products ─── -->
     <div class="tab-content" id="tab-products">
@@ -194,6 +214,7 @@
       </div>
     </div>
 
+
     <!-- ─── Tab: Orders ─── -->
     <div class="tab-content" id="tab-orders">
       <div class="topbar">
@@ -214,6 +235,7 @@
       </div>
     </div>
 
+
     <!-- ─── Tab: API ─── -->
     <div class="tab-content" id="tab-api">
       <div class="topbar"><h1>API Endpoints</h1></div>
@@ -223,6 +245,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- ═══ Product Modal ═══ -->
 <div class="modal-bg" id="productModal">
@@ -250,6 +273,7 @@
   </div>
 </div>
 
+
 <!-- ═══ Category Modal ═══ -->
 <div class="modal-bg" id="categoryModal">
   <div class="modal">
@@ -267,9 +291,11 @@
   </div>
 </div>
 
+
 <script>
 const API = window.location.origin;
 let adminKey = '';
+
 
 // ── Auth ──
 function doLogin() {
@@ -279,6 +305,7 @@ function doLogin() {
   document.getElementById('dashScreen').style.display = 'block';
   loadDashboard();
 }
+
 
 // ── Navigation ──
 function showTab(name) {
@@ -293,11 +320,13 @@ function showTab(name) {
   if (name === 'api') showApiDocs();
 }
 
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
+
 
 // ── Dashboard ──
 async function loadDashboard() {
@@ -323,19 +352,23 @@ async function loadDashboard() {
   } catch (e) { console.error(e); }
 }
 
+
 // ── Categories ──
 let allCategories = [];
+
 
 async function loadCategories() {
   const res = await fetch(API + '/api/categories');
   const d = await res.json();
   allCategories = d.categories;
 
+
   // Count products per category
   const pRes = await fetch(API + '/api/products');
   const pData = await pRes.json();
   const countMap = {};
   pData.products.forEach(p => { countMap[p.category_id] = (countMap[p.category_id] || 0) + 1; });
+
 
   const tbody = document.querySelector('#categoriesTable tbody');
   tbody.innerHTML = d.categories.map(c => `<tr>
@@ -351,19 +384,23 @@ async function loadCategories() {
     </td>
   </tr>`).join('') || '<tr><td colspan="7" class="empty-msg">No categories yet. Click "+ Add Category"</td></tr>';
 
+
   // Also update category dropdowns
   updateCategoryDropdowns();
 }
+
 
 function updateCategoryDropdowns() {
   const opts = '<option value="">-- No Category --</option>' +
     allCategories.filter(c => c.active).map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
   document.getElementById('pCategory').innerHTML = opts;
 
+
   const filterOpts = '<option value="">All Categories</option>' +
     allCategories.filter(c => c.active).map(c => '<option value="' + c.id + '">' + c.name + '</option>').join('');
   document.getElementById('filterCat').innerHTML = filterOpts;
 }
+
 
 function openAddCategory() {
   document.getElementById('editCatId').value = '';
@@ -373,6 +410,7 @@ function openAddCategory() {
   document.getElementById('cSort').value = '0';
   document.getElementById('categoryModal').classList.add('show');
 }
+
 
 async function editCategory(id) {
   const c = allCategories.find(x => x.id === id);
@@ -384,6 +422,7 @@ async function editCategory(id) {
   document.getElementById('cSort').value = c.sort_order;
   document.getElementById('categoryModal').classList.add('show');
 }
+
 
 async function saveCategory() {
   const id = document.getElementById('editCatId').value;
@@ -401,6 +440,7 @@ async function saveCategory() {
   loadCategories();
 }
 
+
 async function deleteCategory(id) {
   if (!confirm('Delete this category? Products in it will become uncategorized.')) return;
   await fetch(API + '/api/categories/' + id, {
@@ -411,6 +451,7 @@ async function deleteCategory(id) {
   loadCategories();
 }
 
+
 // ── Products ──
 async function loadProducts() {
   // Ensure categories are loaded
@@ -420,6 +461,7 @@ async function loadProducts() {
     allCategories = cData.categories;
     updateCategoryDropdowns();
   }
+
 
   const size = document.getElementById('filterSize').value;
   const catId = document.getElementById('filterCat').value;
@@ -445,6 +487,7 @@ async function loadProducts() {
   </tr>`).join('') || '<tr><td colspan="9" class="empty-msg">No products. Click "+ Add Product" to start.</td></tr>';
 }
 
+
 function openAddProduct() {
   document.getElementById('editProductId').value = '';
   document.getElementById('productModalTitle').textContent = 'Add Product';
@@ -457,6 +500,7 @@ function openAddProduct() {
   document.getElementById('pSort').value = '0';
   document.getElementById('productModal').classList.add('show');
 }
+
 
 async function editProduct(id) {
   const res = await fetch(API + '/api/products');
@@ -475,6 +519,7 @@ async function editProduct(id) {
   document.getElementById('pCategory').value = p.category_id || '';
   document.getElementById('productModal').classList.add('show');
 }
+
 
 async function saveProduct() {
   const id = document.getElementById('editProductId').value;
@@ -499,6 +544,7 @@ async function saveProduct() {
   loadProducts();
 }
 
+
 async function deleteProduct(id) {
   if (!confirm('Delete this product?')) return;
   await fetch(API + '/api/products/' + id, {
@@ -508,6 +554,7 @@ async function deleteProduct(id) {
   toast('Product deleted');
   loadProducts();
 }
+
 
 // ── Orders ──
 async function loadOrders() {
@@ -535,13 +582,20 @@ async function loadOrders() {
   </tr>`).join('') || '<tr><td colspan="8" class="empty-msg">No orders yet</td></tr>';
 }
 
-async function updateOrderStatus(orderId, status) {
-  await fetch(API + '/api/orders/' + orderId, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: adminKey, status })
-  });
-  toast('Order ' + orderId + ' → ' + status);
-}
+
+async async function updateOrderStatus(orderId, status) {
+      const labels = { confirmed: 'ยืนยัน', cancelled: 'ยกเลิก', shipped: 'จัดส่ง' };
+      const label = labels[status] || status;
+      const stockMsg = status === 'cancelled' ? '\n(สต็อกจะถูกคืนกลับ)' : status === 'confirmed' ? '\n(สต็อกจะถูกหัก)' : '';
+      if (!confirm('ต้องการ' + label + ' ออเดอร์ ' + orderId + ' ใช่หรือไม่?' + stockMsg)) return;
+      try {
+        const r = await fetch('/api/orders/' + orderId, { method: 'PUT', headers: {'Content-Type':'application/json', 'x-admin-key': adminKey}, body: JSON.stringify({status}) });
+        const d = await r.json();
+        if (d.ok) { toast(label + ' ออเดอร์ ' + orderId + ' สำเร็จ' + (d.stockUpdated ? ' (สต็อกอัพเดตแล้ว)' : ''), 'success'); loadOrders(); }
+        else toast(d.error || 'ผิดพลาด', 'error');
+      } catch(e) { toast('เชื่อมต่อไม่ได้', 'error'); }
+    }
+
 
 // ── API Docs ──
 function showApiDocs() {
@@ -605,6 +659,7 @@ stock = requests.get('${base}/api/stock').json()
   `;
 }
 
+
 function apiCard(method, path, desc, note) {
   const colors = { GET: '#27ae60', POST: '#2980b9', PUT: '#f39c12', DELETE: '#e74c3c' };
   return `<div style="padding:12px 16px;background:#fafaf8;border-radius:8px;border-left:3px solid ${colors[method] || '#999'}">
@@ -617,7 +672,9 @@ function apiCard(method, path, desc, note) {
   </div>`;
 }
 
+
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
 
 // Close modal on bg click
 document.querySelectorAll('.modal-bg').forEach(bg => {
