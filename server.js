@@ -7,6 +7,7 @@ const PDFDocument = require('pdfkit');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 
 // ═══════════════════════════════════════════════
 //  CONFIG
@@ -33,6 +34,55 @@ const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
 const pdfDir = path.join(dataDir, 'pdfs');
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+
+// ── Thai Font Setup (Sarabun from Google Fonts) ──
+const fontDir = path.join(dataDir, 'fonts');
+if (!fs.existsSync(fontDir)) fs.mkdirSync(fontDir, { recursive: true });
+
+const FONT_FILES = {
+  'Sarabun-Regular.ttf': 'https://github.com/google/fonts/raw/main/ofl/sarabun/Sarabun-Regular.ttf',
+  'Sarabun-Bold.ttf': 'https://github.com/google/fonts/raw/main/ofl/sarabun/Sarabun-Bold.ttf',
+};
+
+function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    const get = (u) => {
+      https.get(u, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return get(res.headers.location);
+        }
+        if (res.statusCode !== 200) {
+          file.close();
+          return reject(new Error('HTTP ' + res.statusCode));
+        }
+        res.pipe(file);
+        file.on('finish', () => file.close(resolve));
+      }).on('error', reject);
+    };
+    get(url);
+  });
+}
+
+async function ensureFonts() {
+  for (const [name, url] of Object.entries(FONT_FILES)) {
+    const fp = path.join(fontDir, name);
+    if (fs.existsSync(fp) && fs.statSync(fp).size > 10000) continue;
+    try {
+      console.log('Downloading font: ' + name);
+      await downloadFile(url, fp);
+      console.log('Font downloaded: ' + name + ' (' + fs.statSync(fp).size + ' bytes)');
+    } catch (e) {
+      console.error('Font download failed: ' + name, e.message);
+    }
+  }
+}
+
+// Download fonts at startup
+ensureFonts().catch(e => console.error('Font init error:', e));
+
+const FONT_REGULAR = path.join(fontDir, 'Sarabun-Regular.ttf');
+const FONT_BOLD = path.join(fontDir, 'Sarabun-Bold.ttf');
 
 const db = new Database(path.join(dataDir, 'cruzy.db'));
 db.pragma('journal_mode = WAL');
@@ -490,24 +540,34 @@ function generatePDF(filepath, data) {
     const stream = fs.createWriteStream(filepath);
     doc.pipe(stream);
 
+    // Register Thai fonts if available
+    const hasThai = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD) &&
+                    fs.statSync(FONT_REGULAR).size > 10000 && fs.statSync(FONT_BOLD).size > 10000;
+    const fontR = hasThai ? 'Thai' : 'Helvetica';
+    const fontB = hasThai ? 'Thai-Bold' : 'Helvetica-Bold';
+    if (hasThai) {
+      doc.registerFont('Thai', FONT_REGULAR);
+      doc.registerFont('Thai-Bold', FONT_BOLD);
+    }
+
     const gold = '#C9A800';
     const dark = '#1a1a1a';
     const W = 595;
 
     // Header
     doc.rect(0, 0, W, 100).fill(dark);
-    doc.fontSize(30).font('Helvetica-Bold').fillColor(gold).text('CRUZY', 0, 22, { align: 'center', width: W });
-    doc.fontSize(10).fillColor('#aaa').text('3D Sticker Order Summary', 0, 56, { align: 'center', width: W });
+    doc.fontSize(30).font(fontB).fillColor(gold).text('CRUZY', 0, 22, { align: 'center', width: W });
+    doc.fontSize(10).font(fontR).fillColor('#aaa').text('3D Sticker Order Summary', 0, 56, { align: 'center', width: W });
     doc.fontSize(8).fillColor('#666').text('LINE: @cruzy', 0, 74, { align: 'center', width: W });
 
     // Info box
     const iy = 115;
     doc.roundedRect(40, iy, W - 80, 55, 6).fill('#f8f8f5');
-    doc.fillColor('#333').fontSize(11).font('Helvetica-Bold');
+    doc.fillColor('#333').fontSize(11).font(fontB);
     doc.text('Order: ' + data.orderId, 55, iy + 10);
-    doc.fontSize(9).font('Helvetica').text('Date: ' + data.dateStr, 55, iy + 28);
-    doc.fontSize(9).font('Helvetica-Bold').text('Status:', 350, iy + 10);
-    doc.fillColor('#27ae60').font('Helvetica').text('Confirmed', 395, iy + 10);
+    doc.fontSize(9).font(fontR).text('Date: ' + data.dateStr, 55, iy + 28);
+    doc.fontSize(9).font(fontB).text('Status:', 350, iy + 10);
+    doc.fillColor('#27ae60').font(fontR).text('Confirmed', 395, iy + 10);
 
     let y = iy + 70;
 
@@ -522,26 +582,26 @@ function generatePDF(filepath, data) {
 
     Object.keys(groups).forEach(cat => {
       const items = groups[cat];
-      doc.fontSize(13).font('Helvetica-Bold').fillColor('#2c5282').text(cat + ' (' + items.length + ')', 40, y);
+      doc.fontSize(13).font(fontB).fillColor('#2c5282').text(cat + '  (' + items.length + ')', 40, y);
       y += 22;
 
       // Header row
-      doc.roundedRect(40, y, W - 80, 18, 3).fill('#f0f0ee');
-      doc.fontSize(8).font('Helvetica-Bold').fillColor('#666');
-      doc.text('#', 50, y + 4); doc.text('Name', 80, y + 4);
-      doc.text('Qty', 370, y + 4); doc.text('Price', 420, y + 4); doc.text('Status', 480, y + 4);
-      y += 22;
+      doc.roundedRect(40, y, W - 80, 20, 3).fill('#f0f0ee');
+      doc.fontSize(8).font(fontB).fillColor('#666');
+      doc.text('#', 50, y + 5); doc.text('Name', 80, y + 5);
+      doc.text('Qty', 370, y + 5); doc.text('Price', 420, y + 5); doc.text('Status', 480, y + 5);
+      y += 24;
 
       items.forEach((it, i) => {
-        if (i % 2 === 0) doc.rect(40, y - 2, W - 80, 18).fill('#fafaf8');
+        if (i % 2 === 0) doc.rect(40, y - 2, W - 80, 20).fill('#fafaf8');
         const pName = (it.productData && it.productData.name) || it.name || '#' + it.product_id;
         const price = it.price || 0;
-        doc.fontSize(8).font('Helvetica').fillColor('#333');
-        doc.text(String(i + 1), 50, y + 2); doc.text(pName, 80, y + 2);
-        doc.text(String(it.quantity || 1), 370, y + 2);
-        doc.text(price > 0 ? price.toLocaleString() + ' B' : '-', 420, y + 2);
-        doc.fillColor('#27ae60').text('OK', 480, y + 2);
-        y += 18;
+        doc.fontSize(9).font(fontR).fillColor('#333');
+        doc.text(String(i + 1), 50, y + 3); doc.text(pName, 80, y + 3, { width: 280 });
+        doc.text(String(it.quantity || 1), 370, y + 3);
+        doc.text(price > 0 ? price.toLocaleString() + ' B' : '-', 420, y + 3);
+        doc.fillColor('#27ae60').text('OK', 480, y + 3);
+        y += 20;
       });
       y += 8;
     });
@@ -552,16 +612,16 @@ function generatePDF(filepath, data) {
     doc.roundedRect(40, y, W - 80, 40, 6).fill(dark);
     let totalText = 'TOTAL: ' + (data.total || 0) + ' items';
     if (data.totalPrice > 0) totalText += '  |  ' + data.totalPrice.toLocaleString() + ' Baht';
-    doc.fontSize(15).font('Helvetica-Bold').fillColor(gold)
+    doc.fontSize(15).font(fontB).fillColor(gold)
       .text(totalText, 0, y + 12, { align: 'center', width: W });
     y += 55;
 
-    doc.fontSize(9).font('Helvetica').fillColor('#999')
+    doc.fontSize(9).font(fontR).fillColor('#999')
       .text('Thank you for your order! CRUZY team will contact you within 24 hours.', 0, y, { align: 'center', width: W });
 
     // Footer
     doc.moveTo(40, 800).lineTo(W - 40, 800).strokeColor('#e0e0e0').lineWidth(0.5).stroke();
-    doc.fontSize(7).fillColor('#ccc')
+    doc.fontSize(7).font(fontR).fillColor('#ccc')
       .text('CRUZY Order System | ' + data.dateStr, 40, 805, { width: W - 80, align: 'center' });
 
     doc.end();
@@ -593,10 +653,21 @@ function buildReceiptFlex(orderId, items, total, totalPrice, dateStr, pdfUrl, al
     const catItems = groups[cat];
     body.push({ type: 'box', layout: 'horizontal', margin: 'lg', contents: [
       { type: 'text', text: cat, weight: 'bold', size: 'sm', color: '#2c5282', flex: 2 },
-      { type: 'text', text: catItems.length + ' items', size: 'sm', color: '#444', align: 'end', flex: 1 }
+      { type: 'text', text: catItems.length + ' items', size: 'sm', color: '#444444', align: 'end', flex: 1 }
     ]});
-    const names = catItems.map(it => (it.productData && it.productData.name) || it.name || '#' + it.product_id).join(', ');
-    body.push({ type: 'text', text: names, size: 'xs', color: '#888', wrap: true, margin: 'sm' });
+
+    // Show each item individually with qty
+    catItems.forEach(it => {
+      const pName = (it.productData && it.productData.name) || it.name || '#' + it.product_id;
+      const qty = it.quantity || 1;
+      const price = it.price || 0;
+      const priceText = price > 0 ? (price * qty).toLocaleString() + ' B' : '-';
+      body.push({ type: 'box', layout: 'horizontal', margin: 'sm', paddingStart: '8px', contents: [
+        { type: 'text', text: pName, size: 'xs', color: '#555555', flex: 4, wrap: true },
+        { type: 'text', text: 'x' + qty, size: 'xs', color: '#888888', flex: 1, align: 'center' },
+        { type: 'text', text: priceText, size: 'xs', color: '#555555', flex: 2, align: 'end' }
+      ]});
+    });
   });
 
   body.push({ type: 'separator', margin: 'lg' });
@@ -613,12 +684,12 @@ function buildReceiptFlex(orderId, items, total, totalPrice, dateStr, pdfUrl, al
       type: 'bubble', size: 'mega',
       header: { type: 'box', layout: 'vertical', backgroundColor: '#1a1a1a', paddingAll: '16px', contents: [
         { type: 'text', text: 'CRUZY', color: '#F5C518', weight: 'bold', size: 'lg', align: 'center' },
-        { type: 'text', text: 'Order Confirmed', color: '#fff', size: 'xs', align: 'center', margin: 'sm' }
+        { type: 'text', text: 'Order Confirmed', color: '#ffffff', size: 'xs', align: 'center', margin: 'sm' }
       ]},
       body: { type: 'box', layout: 'vertical', contents: body, paddingAll: '16px' },
       footer: { type: 'box', layout: 'vertical', paddingAll: '12px', contents: [
         { type: 'button', action: { type: 'uri', label: 'Download PDF', uri: pdfUrl }, style: 'primary', color: '#F5C518' },
-        { type: 'text', text: 'CRUZY team will contact you within 24 hrs.', size: 'xxs', color: '#999', align: 'center', margin: 'md' }
+        { type: 'text', text: 'CRUZY team will contact you within 24 hrs.', size: 'xxs', color: '#999999', align: 'center', margin: 'md' }
       ]}
     }
   };
