@@ -301,38 +301,50 @@ app.post('/api/products/bulk', express.json(), (req, res) => {
 
 // GET /api/products/grouped — products grouped by category (for LIFF)
 app.get('/api/products/grouped', (req, res) => {
-  const cats = db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, id').all();
-  const products = db.prepare(
-    'SELECT p.*, c.name as category_name, c.slug as category_slug FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.active = 1 ORDER BY CASE WHEN p.stock <= 0 THEN 1 ELSE 0 END, p.code ASC, p.sort_order, p.id'
-  ).all();
+  try {
+    const cats = db.prepare('SELECT * FROM categories WHERE active = 1 ORDER BY sort_order, id').all();
+    const products = db.prepare(`
+      SELECT p.*, c.name as category_name, c.slug as category_slug
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.active = 1
+      ORDER BY p.sort_order, p.id
+    `).all();
 
-  // Group by category
-  const grouped = [];
-  const catMap = {};
-  cats.forEach(c => { catMap[c.id] = { ...c, products: [] }; });
-
-  // Uncategorized bucket
-  const uncategorized = { id: 0, name: 'อื่นๆ', slug: 'other', products: [] };
-
-  products.forEach(p => {
-    if (p.category_id && catMap[p.category_id]) {
-      catMap[p.category_id].products.push(p);
-    } else {
-      uncategorized.products.push(p);
+    // Group by size first, then by category within each size
+    const sizeLabels = { big: 'หมุดใหญ่', small: 'หมุดเล็ก' };
+    const grouped = {};
+    
+    for (const p of products) {
+      const sizeKey = p.size || 'big';
+      const sizeLabel = sizeLabels[sizeKey] || sizeKey;
+      const catName = p.category_name || 'อื่นๆ';
+      const groupKey = sizeLabel + ' - ' + catName;
+      
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = { 
+          name: groupKey, 
+          sizeLabel: sizeLabel,
+          categoryName: catName,
+          size: sizeKey,
+          products: [] 
+        };
+      }
+      grouped[groupKey].products.push(p);
     }
-  });
 
-  cats.forEach(c => {
-    if (catMap[c.id].products.length > 0) {
-      grouped.push({ category: catMap[c.id].name, slug: catMap[c.id].slug, products: catMap[c.id].products });
-    }
-  });
-  if (uncategorized.products.length > 0) {
-    grouped.push({ category: uncategorized.name, slug: uncategorized.slug, products: uncategorized.products });
+    // Sort: big first, then small; within same size sort by category sort_order
+    const groups = Object.values(grouped).sort((a, b) => {
+      if (a.size !== b.size) return a.size === 'big' ? -1 : 1;
+      return 0;
+    });
+
+    res.json({ categories: cats, groups });
+  } catch (e) {
+    console.error('Products grouped error:', e);
+    res.status(500).json({ error: e.message });
   }
-
-  res.json({ count: products.length, groups: grouped });
-});
+})
 
 // ═══════════════════════════════════════════════
 //  API: STOCK
@@ -396,19 +408,46 @@ app.get('/api/orders/:orderId', (req, res) => {
 
 // Update order status
 app.put('/api/orders/:orderId', express.json(), (req, res) => {
-  const { key, status, note } = req.body;
-  if (key !== ADMIN_KEY) return res.status(403).json({ error: 'Unauthorized' });
-
+  const { status, note } = req.body;
+  const orderId = req.params.orderId;
+  
+  // Get current order to check existing status
+  const order = db.prepare('SELECT * FROM orders WHERE order_id = ?').get(orderId);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  
+  const oldStatus = order.status;
+  
+  // If cancelling: restore stock for all items in this order
+  if (status === 'cancelled' && oldStatus !== 'cancelled') {
+    const items = db.prepare('SELECT product_id, qty FROM order_items WHERE order_id = ?').all(orderId);
+    const restoreStock = db.prepare('UPDATE products SET stock = stock + ?, updated_at = datetime(\'now\') WHERE id = ?');
+    for (const item of items) {
+      restoreStock.run(item.qty || 1, item.product_id);
+    }
+    console.log('Cancelled order ' + orderId + ': restored stock for ' + items.length + ' items');
+  }
+  
+  // If re-confirming a cancelled order: deduct stock again
+  if (status === 'confirmed' && oldStatus === 'cancelled') {
+    const items = db.prepare('SELECT product_id, qty FROM order_items WHERE order_id = ?').all(orderId);
+    const deductStock = db.prepare('UPDATE products SET stock = MAX(0, stock - ?), updated_at = datetime(\'now\') WHERE id = ?');
+    for (const item of items) {
+      deductStock.run(item.qty || 1, item.product_id);
+    }
+    console.log('Re-confirmed order ' + orderId + ': deducted stock for ' + items.length + ' items');
+  }
+  
+  // Update order status and note
   const updates = [];
-  const values = [];
-  if (status) { updates.push('status = ?'); values.push(status); }
-  if (note !== undefined) { updates.push('note = ?'); values.push(note); }
-  if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
-
-  values.push(req.params.orderId);
-  db.prepare('UPDATE orders SET ' + updates.join(', ') + ' WHERE order_id = ?').run(...values);
-  res.json({ success: true });
-});
+  const params = [];
+  if (status) { updates.push('status = ?'); params.push(status); }
+  if (note !== undefined) { updates.push('note = ?'); params.push(note); }
+  if (updates.length === 0) return res.json({ ok: true });
+  
+  params.push(orderId);
+  db.prepare('UPDATE orders SET ' + updates.join(', ') + ' WHERE order_id = ?').run(...params);
+  res.json({ ok: true, orderId, status, stockUpdated: (status === 'cancelled' || (status === 'confirmed' && oldStatus === 'cancelled')) });
+})
 
 // ═══════════════════════════════════════════════
 //  API: STATS (for dashboard)
